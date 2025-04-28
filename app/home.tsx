@@ -149,7 +149,7 @@ export default function HomeScreen() {
         />
       </View>
 
-      {usuario.rol === 'admin' ? (
+      {usuario.rol === 'admin' ||usuario.rol === 'cliente' ? (
         <View style={styles.adminContainer}>
           <Text style={styles.subtitle}>Panel de Administrador</Text>
           <TouchableOpacity

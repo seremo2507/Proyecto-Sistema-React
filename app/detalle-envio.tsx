@@ -1,7 +1,7 @@
 // app/detalle-envio.tsx
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,11 +20,10 @@ import MapView, { Marker, Polyline, Region } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { BackHandler } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import Signature, { SignatureViewRef } from 'react-native-signature-canvas';
 
 export const unstable_settings = {
-  drawer: {
-    gestureEnabled: false,
-  },
+  drawer: { gestureEnabled: false },
 };
 
 export default function DetalleEnvioView() {
@@ -34,7 +33,7 @@ export default function DetalleEnvioView() {
   }>();
   const router = useRouter();
 
-  // --- Estados ---
+  // Estados principales
   const [envio, setEnvio] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -43,7 +42,7 @@ export default function DetalleEnvioView() {
   const [region, setRegion] = useState<Region | null>(null);
   const [ruta, setRuta] = useState<{ latitude: number; longitude: number }[]>([]);
 
-  // Checklist condiciones e incidentes
+  // Checklists y firma
   const [conditions, setConditions] = useState<Record<string, boolean>>({
     temperatura_controlada: false,
     embalaje_adecuado: false,
@@ -70,21 +69,22 @@ export default function DetalleEnvioView() {
     otros_incidentes: false,
   });
   const [descripcionIncidente, setDescripcionIncidente] = useState('');
+  const [signatureData, setSignatureData] = useState<string>('');
   const [showMissingModal, setShowMissingModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const toggleCondition = (key: string) =>
-    setConditions(prev => ({ ...prev, [key]: !prev[key] }));
-  const toggleIncident = (key: string) =>
-    setIncidents(prev => ({ ...prev, [key]: !prev[key] }));
+  const sigRef = useRef<SignatureViewRef | null>(null);
 
-  // --- Fetch mis envíos y filtrar ---
+  const toggleCondition = (key: string) =>
+    setConditions((prev) => ({ ...prev, [key]: !prev[key] }));
+  const toggleIncident = (key: string) =>
+    setIncidents((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  // Obtener detalle del envío
   const fetchDetail = async () => {
     if (!id_asignacion) return;
+    console.log('🔢 id_asignacion:', id_asignacion);
     setLoading(true);
-    setEnvio(null);
-    setRegion(null);
-    setRuta([]);
     setRefreshing(true);
     try {
       const token = await AsyncStorage.getItem('token');
@@ -94,11 +94,12 @@ export default function DetalleEnvioView() {
       );
       const list = await res.json();
       const found = (list as any[]).find(
-        e => e.id_asignacion?.toString() === id_asignacion
+        (e) => e.id_asignacion?.toString() === id_asignacion
       );
       if (!found) throw new Error('No se encontró la asignación');
       setEnvio(found);
-      // inicializar mapa
+
+      // Inicializar mapa
       const o = found.coordenadas_origen;
       const d = found.coordenadas_destino;
       if (Array.isArray(o) && Array.isArray(d)) {
@@ -133,25 +134,23 @@ export default function DetalleEnvioView() {
     React.useCallback(() => {
       const onBackPress = () => {
         router.replace('/home');
-        return true; // Evita el comportamiento por defecto
+        return true;
       };
-  
       BackHandler.addEventListener('hardwareBackPress', onBackPress);
-  
-      return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
+      return () =>
+        BackHandler.removeEventListener('hardwareBackPress', onBackPress);
     }, [])
   );
-  
 
-  // --- Confirmar viaje (condiciones → iniciar) ---
+  // Confirmar viaje: checklist condiciones
   const handleConfirmTrip = async () => {
     if (!Object.values(conditions).every(Boolean)) {
-      return setShowMissingModal(true);
+      setShowMissingModal(true);
+      return;
     }
     setSubmitting(true);
     try {
       const token = await AsyncStorage.getItem('token');
-      // POST checklist-condiciones
       const resChk = await fetch(
         `https://api-4g7v.onrender.com/api/envios/${id_asignacion}/checklist-condiciones`,
         {
@@ -164,13 +163,14 @@ export default function DetalleEnvioView() {
         }
       );
       if (!resChk.ok) throw new Error('Error guardando condiciones');
-      // PUT iniciar viaje
       const resStart = await fetch(
         `https://api-4g7v.onrender.com/api/envios/iniciar/${id_asignacion}`,
-        { method: 'PUT', headers: { Authorization: `Bearer ${token}` } }
+        {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
       if (!resStart.ok) throw new Error('Error iniciando viaje');
-      // actualizar estado localmente
       setEnvio((prev: any) => ({ ...prev, estado_envio: 'En curso' }));
     } catch (err: any) {
       Alert.alert('Error', err.message);
@@ -179,16 +179,30 @@ export default function DetalleEnvioView() {
     }
   };
 
-  // --- Finalizar entrega (incidentes → finalizar) ---
+  // Finalizar entrega: checklist incidentes → firma → finalizar
   const handleFinalize = async () => {
+    // Validaciones
+    if (!Object.values(incidents).every(Boolean)) {
+      Alert.alert('Error', 'Completa el checklist de incidentes.');
+      return;
+    }
+    if (!descripcionIncidente.trim()) {
+      Alert.alert('Error', 'Agrega descripción del incidente.');
+      return;
+    }
+    if (!signatureData) {
+      Alert.alert(
+        'Error',
+        'Debes capturar la firma del cliente antes de finalizar el viaje.'
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
       const token = await AsyncStorage.getItem('token');
-      const resFin = await fetch(
-        `https://api-4g7v.onrender.com/api/envios/finalizar/${id_asignacion}`,
-        { method: 'PUT', headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (!resFin.ok) throw new Error('Error finalizando envío');
+
+      // 1) Registrar checklist incidentes
       const resInc = await fetch(
         `https://api-4g7v.onrender.com/api/envios/${id_asignacion}/checklist-incidentes`,
         {
@@ -197,10 +211,60 @@ export default function DetalleEnvioView() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ ...incidents, descripcion_incidente: descripcionIncidente }),
+          body: JSON.stringify({
+            ...incidents,
+            descripcion_incidente: descripcionIncidente,
+          }),
         }
       );
-      if (!resInc.ok) throw new Error('Error registrando incidentes');
+      if (!resInc.ok) {
+        const b = await resInc.json().catch(() => ({}));
+        if (
+          resInc.status === 400 &&
+          (b.error || '').toLowerCase().includes('ya fue registrado')
+        ) {
+          console.warn('⚠️ Checklist de incidentes ya registrado, continuando...');
+        } else {
+          throw new Error(
+            `Error incidentes (${resInc.status}): ${b.error || JSON.stringify(b)}`
+          );
+        }
+      }
+
+      // 2) Enviar firma usando id_asignacion
+      console.log('🆔 id_asignacion para firma:', id_asignacion);
+      const resFirma = await fetch(
+        `https://api-4g7v.onrender.com/api/envios/firma/${id_asignacion}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ imagenFirma: signatureData }),
+        }
+      );
+      const bFirma = await resFirma.json().catch(() => ({}));
+      console.log('📥 Firma response:', resFirma.status, bFirma);
+      if (!resFirma.ok) {
+        throw new Error(`Error firma (${resFirma.status}): ${bFirma.error || JSON.stringify(bFirma)}`);
+      }
+
+      // 3) Finalizar envío
+      const resFin = await fetch(
+        `https://api-4g7v.onrender.com/api/envios/finalizar/${id_asignacion}`,
+        {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      if (!resFin.ok) {
+        const b = await resFin.json().catch(() => ({}));
+        throw new Error(
+          `Error finalizando envío (${resFin.status}): ${b.error || JSON.stringify(b)}`
+        );
+      }
+
       setEnvio((prev: any) => ({ ...prev, estado_envio: 'Entregado' }));
     } catch (err: any) {
       Alert.alert('Error', err.message);
@@ -209,7 +273,7 @@ export default function DetalleEnvioView() {
     }
   };
 
-  // --- Render ---
+  // Cargando / no envío
   if (loading) {
     return (
       <View style={styles.loading}>
@@ -225,6 +289,7 @@ export default function DetalleEnvioView() {
     );
   }
 
+  // UI principal
   return (
     <ScrollView
       style={styles.container}
@@ -232,58 +297,66 @@ export default function DetalleEnvioView() {
         <RefreshControl refreshing={refreshing} onRefresh={fetchDetail} tintColor="#28a745" />
       }
     >
+      {/* Header */}
       <View style={styles.header}>
-      <Pressable onPress={() => router.replace('/home')} style={styles.backButton}>
-        <Ionicons name="arrow-back" size={24} color="#fff" />
-      </Pressable>
-        <Text style={styles.title}>Envío N.º {envio.id_envio}</Text>
+        <Pressable onPress={() => router.replace('/home')} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+        </Pressable>
+        <View>
+          <Text style={styles.title}>Envío N.º {envio.id_envio}</Text>
+          <Text style={styles.subtitle}>Asignación N.º {id_asignacion}</Text>
+        </View>
       </View>
 
+      {/* Detalles del envío */}
       <View style={styles.card}>
         <Text style={styles.item}>📦 Producto: {envio.cargas?.[0]?.tipo || '—'}</Text>
         <Text style={styles.item}>🚛 Transporte: {envio.tipo_transporte}</Text>
         <Text style={styles.item}>📋 Estado: {envio.estado_envio}</Text>
         <Text style={styles.item}>
-          📅 Recogida: {envio.recogidaEntrega?.fecha_recogida?.split('T')[0]}
+          📅 Recogida: {envio.recogidaEntrega?.fecha_recogida?.split('T')[0] || '—'}
         </Text>
         <Text style={styles.item}>
-          🕒 {envio.recogidaEntrega?.hora_recogida?.substring(11, 16)} –{' '}
-          {envio.recogidaEntrega?.hora_entrega?.substring(11, 16)}
+          🕒 {envio.recogidaEntrega?.hora_recogida?.substring(11, 16) || '--:--'} –{' '}
+          {envio.recogidaEntrega?.hora_entrega?.substring(11, 16) || '--:--'}
         </Text>
-        <Text style={styles.item}>🌱 Variedad: {envio.cargas?.[0]?.variedad}</Text>
-        <Text style={styles.item}>⚖️ Peso: {envio.cargas?.[0]?.peso} kg</Text>
-        <Text style={styles.item}>🔢 Cantidad: {envio.cargas?.[0]?.cantidad}</Text>
-        <Text style={styles.item}>📍 {envio.nombre_origen} → {envio.nombre_destino}</Text>
+        <Text style={styles.item}>🌱 Variedad: {envio.cargas?.[0]?.variedad || '—'}</Text>
+        <Text style={styles.item}>⚖️ Peso: {envio.cargas?.[0]?.peso ?? '—'} kg</Text>
+        <Text style={styles.item}>🔢 Cantidad: {envio.cargas?.[0]?.cantidad ?? '—'}</Text>
+        <Text style={styles.item}>
+          📍 {envio.nombre_origen} → {envio.nombre_destino}
+        </Text>
       </View>
 
+      {/* Mapa */}
       <Text style={styles.subtitle}>🗺️ Ruta</Text>
       {region ? (
         <MapView style={styles.map} initialRegion={region}>
-        <Marker
-          coordinate={{
-            latitude: envio.coordenadas_origen[0],
-            longitude: envio.coordenadas_origen[1],
-          }}
-          title={`Origen: ${envio.nombre_origen}`}
-          pinColor="#007bff" // Azul
-        />
-        <Marker
-          coordinate={{
-            latitude: envio.coordenadas_destino[0],
-            longitude: envio.coordenadas_destino[1],
-          }}
-          title={`Destino: ${envio.nombre_destino}`}
-          pinColor="#dc3545" // Rojo
-        />
-        {ruta.length > 0 && (
-          <Polyline coordinates={ruta} strokeColor="#1e90ff" strokeWidth={4} />
-        )}
-      </MapView>
-      
+          <Marker
+            coordinate={{
+              latitude: envio.coordenadas_origen[0],
+              longitude: envio.coordenadas_origen[1],
+            }}
+            title={`Origen: ${envio.nombre_origen}`}
+            pinColor="#007bff"
+          />
+          <Marker
+            coordinate={{
+              latitude: envio.coordenadas_destino[0],
+              longitude: envio.coordenadas_destino[1],
+            }}
+            title={`Destino: ${envio.nombre_destino}`}
+            pinColor="#dc3545"
+          />
+          {ruta.length > 0 && (
+            <Polyline coordinates={ruta} strokeColor="#1e90ff" strokeWidth={4} />
+          )}
+        </MapView>
       ) : (
         <Text style={styles.noMap}>Sin coordenadas.</Text>
       )}
 
+      {/* Checklist Condiciones */}
       {envio.estado_envio.toLowerCase() === 'asignado' && (
         <>
           <Text style={styles.subtitle}>✅ Checklist de Condiciones</Text>
@@ -294,7 +367,7 @@ export default function DetalleEnvioView() {
             value={observaciones}
             onChangeText={setObservaciones}
           />
-          {Object.keys(conditions).map(key => (
+          {Object.keys(conditions).map((key) => (
             <Pressable key={key} style={styles.row} onPress={() => toggleCondition(key)}>
               <Ionicons
                 name={conditions[key] ? 'checkbox' : 'square-outline'}
@@ -316,6 +389,7 @@ export default function DetalleEnvioView() {
         </>
       )}
 
+      {/* Checklist Incidentes + Firma */}
       {envio.estado_envio.toLowerCase() === 'en curso' && (
         <>
           <Text style={styles.subtitle}>⚠️ Checklist de Incidentes</Text>
@@ -326,7 +400,7 @@ export default function DetalleEnvioView() {
             value={descripcionIncidente}
             onChangeText={setDescripcionIncidente}
           />
-          {Object.keys(incidents).map(key => (
+          {Object.keys(incidents).map((key) => (
             <Pressable key={key} style={styles.row} onPress={() => toggleIncident(key)}>
               <Ionicons
                 name={incidents[key] ? 'checkbox' : 'square-outline'}
@@ -336,6 +410,30 @@ export default function DetalleEnvioView() {
               <Text style={styles.rowLabel}>{key.replace(/_/g, ' ')}</Text>
             </Pressable>
           ))}
+
+          <View style={{ marginTop: 16, height: 300 }}>
+            <Signature
+              ref={sigRef}
+              onBegin={() => console.log('✏️ Signature onBegin')}
+              onEnd={() => {
+                console.log('✏️ Signature onEnd');
+                sigRef.current?.readSignature();
+              }}
+              onOK={(data) => {
+                console.log('✅ Signature onOK length=', data.length);
+                setSignatureData(data);
+              }}
+              onEmpty={() => console.warn('⚠️ Signature onEmpty')}
+              descriptionText="Firma aquí"
+              clearText="Limpiar"
+              confirmText="Guardar"
+              webStyle={`
+                .m-signature-pad--footer { background-color: #0f2027; }
+                body,html { width:100%;height:100%;margin:0; }
+              `}
+            />
+          </View>
+
           <Pressable
             style={[styles.button, submitting && styles.disabled]}
             onPress={handleFinalize}
@@ -348,26 +446,20 @@ export default function DetalleEnvioView() {
         </>
       )}
 
-<Modal transparent visible={showMissingModal} animationType="fade">
-  <View style={styles.modalOverlay}>
-    <View style={[styles.modalBox, { backgroundColor: '#0f2027' }]}>
-      <Text style={styles.modalIcon}>⚠️</Text>
-
-      <Text style={[styles.modalTitle, { color: '#fff', textAlign: 'center', marginBottom: 20 }]}>
-        Completa todas las condiciones antes de iniciar
-      </Text>
-
-      <Pressable
-        style={[styles.modalBtn, { backgroundColor: '#28a745' }]}
-        onPress={() => setShowMissingModal(false)}
-      >
-        <Text style={styles.modalBtnText}>Entendido</Text>
-      </Pressable>
-    </View>
-  </View>
-</Modal>
-
-
+      {/* Modal validación */}
+      <Modal transparent visible={showMissingModal} animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalIcon}>⚠️</Text>
+            <Text style={styles.modalTitle}>
+              Completa todos los campos y firma antes de continuar
+            </Text>
+            <Pressable style={styles.modalBtn} onPress={() => setShowMissingModal(false)}>
+              <Text style={styles.modalBtnText}>Entendido</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       <View style={{ height: 40 }} />
     </ScrollView>
@@ -377,14 +469,27 @@ export default function DetalleEnvioView() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f2027', padding: 16 },
   loading: {
-    flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f2027'
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0f2027',
   },
-  title: { color: '#fff', fontSize: 22, fontWeight: '700', marginBottom: 12 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+  },
+  backButton: { padding: 4 },
+  title: { color: '#fff', fontSize: 22, fontWeight: '700' },
+  subtitle: { color: '#fff', fontSize: 16, fontWeight: '500' },
   card: {
-    backgroundColor: '#1e2a38', padding: 16, borderRadius: 12, marginBottom: 16
+    backgroundColor: '#1e2a38',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
   },
   item: { color: '#ddd', marginBottom: 6 },
-  subtitle: { color: '#fff', fontSize: 18, fontWeight: '600', marginVertical: 10 },
   map: {
     width: Dimensions.get('window').width - 32,
     height: 220,
@@ -393,41 +498,43 @@ const styles = StyleSheet.create({
   },
   noMap: { color: '#ccc', textAlign: 'center', marginBottom: 16 },
   input: {
-    backgroundColor: '#2a3748', color: '#fff', borderRadius: 8, padding: 12, marginBottom: 8
+    backgroundColor: '#2a3748',
+    color: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
   },
   row: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   rowLabel: { color: '#fff', marginLeft: 10, textTransform: 'capitalize' },
   button: {
-    backgroundColor: '#28a745', padding: 14, borderRadius: 10, alignItems: 'center', marginTop: 12
+    backgroundColor: '#28a745',
+    padding: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 12,
   },
   disabled: { backgroundColor: '#555' },
   btnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center'
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalBox: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 20, width: '75%', alignItems: 'center'
+    backgroundColor: '#0f2027',
+    borderRadius: 12,
+    padding: 20,
+    width: '75%',
+    alignItems: 'center',
   },
-  modalTitle: { fontSize: 16, marginBottom: 12, textAlign: 'center' },
+  modalIcon: { fontSize: 40, marginBottom: 16, color: '#fff' },
+  modalTitle: { color: '#fff', fontSize: 16, textAlign: 'center', marginBottom: 12 },
   modalBtn: {
-    backgroundColor: '#007bff', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8
+    backgroundColor: '#28a745',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
   },
   modalBtnText: { color: '#fff', fontWeight: '600' },
-  backBtn: { marginTop: 20 },
-  backText: { color: '#28a745', fontSize: 16 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
-  },
-  backButton: {
-    padding: 4,
-  },
-  modalIcon: {
-    fontSize: 40,
-    marginBottom: 16,
-  },
-  
-  
 });
