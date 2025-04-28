@@ -30,7 +30,7 @@ export default function HomeScreen() {
   const [envios, setEnvios] = useState<Envio[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [usuario, setUsuario] = useState<string>('Transportista');
+  const [usuario, setUsuario] = useState<{ nombre: string; rol: string }>({ nombre: 'Transportista', rol: 'transportista' });
 
   const navigation = useNavigation();
 
@@ -55,20 +55,24 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      const cargarNombre = async () => {
+      const cargarUsuario = async () => {
         const raw = await AsyncStorage.getItem('usuario');
         const parsed = raw ? JSON.parse(raw) : {};
-        setUsuario(parsed.nombre || 'Transportista');
+        setUsuario({
+          nombre: parsed.nombre || 'Transportista',
+          rol: parsed.rol || 'transportista',
+        });
       };
-      cargarNombre();
+      cargarUsuario();
     }, [])
   );
-  
 
   useFocusEffect(
     useCallback(() => {
-      fetchEnvios();
-    }, [])
+      if (usuario.rol === 'transportista') {
+        fetchEnvios();
+      }
+    }, [usuario])
   );
 
   const onRefresh = async () => {
@@ -103,14 +107,14 @@ export default function HomeScreen() {
       <TouchableOpacity
         style={[styles.card, { borderLeftColor: estadoColor(item.estado_envio) }]}
         onPress={() =>
-            router.replace({
-              pathname: '/detalle-envio',
-              params: {
-                id_asignacion: item.id_asignacion.toString(),
-                refresh: Date.now().toString(),    // timestamp como string
-              },
-            })
-          }
+          router.replace({
+            pathname: '/detalle-envio',
+            params: {
+              id_asignacion: item.id_asignacion.toString(),
+              refresh: Date.now().toString(),
+            },
+          })
+        }
       >
         <View style={styles.cardHeader}>
           <Ionicons name="cube-outline" size={24} color={estadoColor(item.estado_envio)} />
@@ -137,15 +141,26 @@ export default function HomeScreen() {
         </TouchableOpacity>
         <View style={styles.greeting}>
           <Text style={styles.greetingText}>Hola,</Text>
-          <Text style={styles.greetingName}>{usuario}</Text>
+          <Text style={styles.greetingName}>{usuario.nombre}</Text>
         </View>
         <Image
-          source={require('../assets/logo.png')} // tu avatar aquí
+          source={require('../assets/logo.png')}
           style={styles.avatar}
         />
       </View>
 
-      {loading ? (
+      {usuario.rol === 'admin' ? (
+        <View style={styles.adminContainer}>
+          <Text style={styles.subtitle}>Panel de Administrador</Text>
+          <TouchableOpacity
+            style={styles.adminButton}
+            onPress={() => router.push('/crear-envio')}
+          >
+            <Ionicons name="add-circle-outline" size={24} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.adminButtonText}>Crear Envío</Text>
+          </TouchableOpacity>
+        </View>
+      ) : loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#fff" />
         </View>
@@ -200,4 +215,15 @@ const styles = StyleSheet.create({
   cardSub: { color: '#ccc', fontSize: 14, marginBottom: 12 },
   estadoBadge: { alignSelf: 'flex-start', borderRadius: 12, overflow: 'hidden' },
   estadoText: { color: '#fff', paddingVertical: 4, paddingHorizontal: 12, fontSize: 12 },
+  adminContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16 },
+  subtitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
+  adminButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#28a745',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  adminButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });
