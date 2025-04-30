@@ -69,7 +69,11 @@ export default function LoginScreen() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Credenciales inválidas');
+      // Save token and user info
       await AsyncStorage.setItem('token', data.token);
+      await AsyncStorage.setItem('usuario', JSON.stringify(data.usuario));
+
+      // Trigger success toast and navigate to Home (common dashboard)
       setSuccess(true);
       setTimeout(() => router.replace('/home'), 1200);
     } catch (err: any) {
@@ -83,12 +87,22 @@ export default function LoginScreen() {
     <View style={styles.flex}>
       <LinearGradient colors={['#2c5364', '#0f2027']} style={styles.container}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.inner}>
-          <MotiText from={{ opacity: 0, translateY: -20 }} animate={{ opacity: 1, translateY: 0 }} transition={{ type: 'spring', duration: 800 }} style={styles.title}>
+          <MotiText
+            from={{ opacity: 0, translateY: -20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'spring', duration: 800 }}
+            style={styles.title}
+          >
             ¡Bienvenido!
           </MotiText>
 
           {/* Email Field */}
-          <MotiView from={{ opacity: 0, translateX: -width }} animate={{ opacity: 1, translateX: 0 }} transition={{ type: 'timing', duration: 800, delay: 200 }} style={styles.inputContainer}>
+          <MotiView
+            from={{ opacity: 0, translateX: -width }}
+            animate={{ opacity: 1, translateX: 0 }}
+            transition={{ type: 'timing', duration: 800, delay: 200 }}
+            style={styles.inputContainer}
+          >
             <Feather name="mail" size={20} color={focused === 'email' ? '#fff' : '#ccc'} style={styles.icon} />
             <TextInput
               placeholder="Correo electrónico"
@@ -119,7 +133,12 @@ export default function LoginScreen() {
           </AnimatePresence>
 
           {/* Password Field */}
-          <MotiView from={{ opacity: 0, translateX: width }} animate={{ opacity: 1, translateX: 0 }} transition={{ type: 'timing', duration: 800, delay: 400 }} style={styles.inputContainer}>
+          <MotiView
+            from={{ opacity: 0, translateX: width }}
+            animate={{ opacity: 1, translateX: 0 }}
+            transition={{ type: 'timing', duration: 800, delay: 400 }}
+            style={styles.inputContainer}
+          >
             <Feather name="lock" size={20} color={focused === 'password' ? '#fff' : '#ccc'} style={styles.icon} />
             <TextInput
               placeholder="Contraseña"
@@ -149,8 +168,21 @@ export default function LoginScreen() {
           </AnimatePresence>
 
           {/* Login Button */}
-          <MotiView from={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1, translateX: shake ? [-20, 20, -20, 20, 0] : 0 }} transition={{ type: 'timing', duration: 500 }} style={{ width: '100%' }}>
-            <Pressable onPress={handleLogin} disabled={loading} style={({ pressed }) => [styles.button, pressed && { opacity: 0.7 }, !isFormValid && touched.email && touched.password && styles.buttonDisabled]}>
+          <MotiView
+            from={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1, translateX: shake ? [-20, 20, -20, 20, 0] : 0 }}
+            transition={{ type: 'timing', duration: 500 }}
+            style={{ width: '100%' }}
+          >
+            <Pressable
+              onPress={handleLogin}
+              disabled={loading}
+              style={({ pressed }) => [
+                styles.button,
+                pressed && { opacity: 0.7 },
+                !isFormValid && touched.email && touched.password && styles.buttonDisabled,
+              ]}
+            >
               {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Iniciar sesión</Text>}
             </Pressable>
           </MotiView>
@@ -160,13 +192,23 @@ export default function LoginScreen() {
       {/* Toasts */}
       <AnimatePresence>
         {success && (
-          <MotiView from={{ opacity: 0, translateY: 100 }} animate={{ opacity: 1, translateY: 0 }} exit={{ opacity: 0, translateY: 100 }} transition={{ type: 'timing', duration: 400 }} style={[styles.toast, { backgroundColor: '#d4edda' }]}>
+          <MotiView
+            from={{ opacity: 0, translateY: 100 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            exit={{ opacity: 0, translateY: 100 }}
+            transition={{ type: 'timing', duration: 400 }}
+            style={[styles.toast, { backgroundColor: '#d4edda' }]}>
             <Feather name="check-circle" size={20} color="#155724" />
             <Text style={[styles.toastText, { color: '#155724' }]}>Inicio de sesión exitoso</Text>
           </MotiView>
         )}
         {!!error && (
-          <MotiView from={{ opacity: 0, translateY: 100 }} animate={{ opacity: 1, translateY: 0 }} exit={{ opacity: 0, translateY: 100 }} transition={{ type: 'timing', duration: 400 }} style={[styles.toast, { backgroundColor: '#f8d7da' }]}>
+          <MotiView
+            from={{ opacity: 0, translateY: 100 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            exit={{ opacity: 0, translateY: 100 }}
+            transition={{ type: 'timing', duration: 400 }}
+            style={[styles.toast, { backgroundColor: '#f8d7da' }]}>
             <Feather name="x-circle" size={20} color="#721c24" />
             <Text style={[styles.toastText, { color: '#721c24' }]}>{error}</Text>
           </MotiView>
@@ -186,21 +228,8 @@ const styles = StyleSheet.create({
   input: { flex: 1, color: '#fff', height: 48, fontSize: 16 },
   inputFocus: { borderColor: '#fff', borderWidth: 1 },
   inputError: { borderColor: '#ff6b6b', borderWidth: 1 },
-  errorText: {
-    color: '#ff6b6b',
-    fontSize: 14,
-    marginLeft: 8,
-  },
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 107, 107, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginLeft: 8,
-    marginBottom: 12,
-  },
+  errorText: { color: '#ff6b6b', fontSize: 14, marginLeft: 8 },
+  errorContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255, 107, 107, 0.1)', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, marginLeft: 8, marginBottom: 12 },
   button: { backgroundColor: '#28a745', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 10 },
   buttonDisabled: { backgroundColor: '#6c757d' },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
