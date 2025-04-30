@@ -65,7 +65,7 @@ export default function LoginScreen() {
       const res = await fetch('https://api-4g7v.onrender.com/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ correo: email.trim(), contrasena: password.trim() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Credenciales inválidas');
