@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MotiView, MotiText, AnimatePresence } from 'moti';
+import { MotiView, AnimatePresence } from 'moti';
 import { useFocusEffect } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 
@@ -32,7 +32,7 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(true);
 
-  // Reset form visibility on screen focus (handles logout return)
+  // Reset form on focus
   useFocusEffect(
     useCallback(() => {
       setShowForm(true);
@@ -52,8 +52,6 @@ export default function LoginScreen() {
       return () => clearTimeout(t);
     }
   }, [error]);
-
-  
 
   const emailRegex = /^[\w-.]+@[\w-]+\.[a-z]{2,}$/i;
   const isEmailValid = emailRegex.test(email);
@@ -96,53 +94,47 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={[styles.flex, styles.background]}>
+    <View style={styles.container}>
       <AnimatePresence>
         {showForm && (
-          <MotiView transition={{ type: 'timing', duration: 800 }}
+          <MotiView
+            from={{ opacity: 0, translateX: width }}
+            animate={{ opacity: 1, translateX: 0 }}
+            exit={{ opacity: 0, translateX: -width }}
+            transition={{ type: 'timing', duration: 800 }}
             style={{ flex: 1 }}
           >
-            <LinearGradient colors={['#2c5364', '#0f2027']} style={styles.container}>
+            <LinearGradient colors={['#0140CD', '#0140CD']} style={styles.gradient}>
               <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.inner}
               >
-                {/* Logo Animation */}
+                {/* Logo */}
                 <MotiView
                   from={{ opacity: 0, scale: 0.5 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ type: 'spring', duration: 800, delay: 100 }}
-                  style={styles.loginImageContainer}
+                  style={styles.logoContainer}
                 >
-                  <Image
-                    source={require('../assets/logo.png')}
-                    style={styles.loginImage}
-                    resizeMode="contain"
-                  />
+                  <Image source={require('../assets/logo.png')} style={styles.logo} />
                 </MotiView>
 
-                <MotiText
+                <MotiView
                   from={{ opacity: 0, translateY: -20 }}
                   animate={{ opacity: 1, translateY: 0 }}
                   transition={{ type: 'spring', duration: 800 }}
-                  style={styles.title}
                 >
-                  ¡Bienvenido!
-                </MotiText>
+                  <Text style={styles.title}>¡Bienvenido!</Text>
+                </MotiView>
 
-                {/* Email Field */}
+                {/* Email Input */}
                 <MotiView
                   from={{ opacity: 0, translateX: -width }}
                   animate={{ opacity: 1, translateX: 0 }}
                   transition={{ type: 'timing', duration: 800, delay: 200 }}
                   style={styles.inputContainer}
                 >
-                  <Feather
-                    name="mail"
-                    size={20}
-                    color={focused === 'email' ? '#fff' : '#ccc'}
-                    style={styles.icon}
-                  />
+                  <Feather name="mail" size={20} color={focused === 'email' ? '#fff' : '#ccc'} style={styles.icon} />
                   <TextInput
                     placeholder="Correo electrónico"
                     placeholderTextColor="#aaa"
@@ -175,19 +167,14 @@ export default function LoginScreen() {
                   )}
                 </AnimatePresence>
 
-                {/* Password Field */}
+                {/* Password Input */}
                 <MotiView
                   from={{ opacity: 0, translateX: width }}
                   animate={{ opacity: 1, translateX: 0 }}
                   transition={{ type: 'timing', duration: 800, delay: 400 }}
                   style={styles.inputContainer}
                 >
-                  <Feather
-                    name="lock"
-                    size={20}
-                    color={focused === 'password' ? '#fff' : '#ccc'}
-                    style={styles.icon}
-                  />
+                  <Feather name="lock" size={20} color={focused === 'password' ? '#fff' : '#ccc'} style={styles.icon} />
                   <TextInput
                     placeholder="Contraseña"
                     placeholderTextColor="#aaa"
@@ -229,13 +216,13 @@ export default function LoginScreen() {
                   <Pressable
                     onPress={handleLogin}
                     disabled={loading}
-                    style={({ pressed }) => [
-                      styles.button,
-                      pressed && { opacity: 0.7 },
-                      !isFormValid && touched.email && touched.password && styles.buttonDisabled,
-                    ]}
+                    style={styles.button}
                   >
-                    {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Iniciar sesión</Text>}
+                    {loading ? (
+                      <ActivityIndicator color="#0140CD" />
+                    ) : (
+                      <Text style={styles.buttonText}>Iniciar sesión</Text>
+                    )}
                   </Pressable>
                 </MotiView>
               </KeyboardAvoidingView>
@@ -276,13 +263,12 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  loginImageContainer: { flexDirection: 'row', justifyContent: 'center', marginBottom: 16 },
-  loginImage: { width: 120, height: 120 },
-  flex: { flex: 1 },
-  background: { backgroundColor: '#0f2027' },
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: '#0140CD' },
+  gradient: { flex: 1 },
   inner: { flex: 1, padding: 24, justifyContent: 'center', gap: 16 },
-  title: { fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', marginBottom: 20 },
+  logoContainer: { alignItems: 'center', marginBottom: 16 },
+  logo: { width: 120, height: 120 },
+  title: { fontSize: 28, color: '#fff', fontWeight: '700', textAlign: 'center', marginBottom: 20 },
   inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, paddingHorizontal: 12, marginBottom: 12 },
   icon: { marginRight: 8 },
   input: { flex: 1, color: '#fff', height: 48, fontSize: 16 },
@@ -290,9 +276,8 @@ const styles = StyleSheet.create({
   inputError: { borderColor: '#ff6b6b', borderWidth: 1 },
   errorText: { color: '#ff6b6b', fontSize: 14, marginLeft: 8 },
   errorContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,107,107,0.1)', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, marginLeft: 8, marginBottom: 12 },
-  button: { backgroundColor: '#28a745', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 10 },
-  buttonDisabled: { backgroundColor: '#6c757d' },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  button: { backgroundColor: '#fff', borderWidth: 2, borderColor: '#0140CD', paddingVertical: 14, paddingHorizontal: 48, borderRadius: 12, alignItems: 'center', marginTop: 20, shadowColor: '#000', shadowOpacity: 0.2, shadowOffset: { width: 0, height: 6 }, shadowRadius: 10, elevation: 6 },
+  buttonText: { color: '#0140CD', fontSize: 16, fontWeight: '600' },
   toast: { position: 'absolute', bottom: 40, left: 20, right: 20, flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, elevation: 8 },
   toastText: { marginLeft: 8, fontSize: 14, fontWeight: '500' },
 });

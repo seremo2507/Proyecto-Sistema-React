@@ -34,7 +34,7 @@ export default function WelcomeScreen() {
   }, []);
 
   return (
-    <LinearGradient colors={['#0f2027', '#2c5364']} style={styles.container}>
+    <LinearGradient colors={['#0140CD', '#0140CD']} style={styles.container}>
       <MotiView
         from={{ translateY: height, scale: 1 }}
         animate={{
@@ -116,7 +116,7 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f2027',
+    backgroundColor: '#0140CD',
   },
   logoContainer: {
     position: 'absolute',
@@ -138,18 +138,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   button: {
-    backgroundColor: '#28a745',
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#0140CD',
     paddingVertical: 14,
     paddingHorizontal: 48,
     borderRadius: 24,
     shadowColor: '#000',
     shadowOpacity: 0.2,
     shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 10,
-    elevation: 6,
   },
   buttonText: {
-    color: '#fff',
+    color: '#0140CD',
     fontSize: 16,
     fontWeight: '600',
   },
