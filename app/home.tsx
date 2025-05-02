@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -34,15 +34,19 @@ export default function HomeScreen() {
 
   const navigation = useNavigation();
 
+  // Fetch shipments for transportista
   const fetchEnvios = async () => {
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('token');
-      if (!token) return setEnvios([]);
-
-      const res = await fetch('https://api-4g7v.onrender.com/api/envios/mis-envios-transportista', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      if (!token) {
+        setEnvios([]);
+        return;
+      }
+      const res = await fetch(
+        'https://api-4g7v.onrender.com/api/envios/mis-envios-transportista',
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       const data = await res.json();
       setEnvios(data || []);
     } catch (err) {
@@ -53,26 +57,19 @@ export default function HomeScreen() {
     }
   };
 
+  // Load user and shipments on focus
   useFocusEffect(
     useCallback(() => {
-      const cargarUsuario = async () => {
+      const cargar = async () => {
         const raw = await AsyncStorage.getItem('usuario');
         const parsed = raw ? JSON.parse(raw) : {};
-        setUsuario({
-          nombre: parsed.nombre || 'Transportista',
-          rol: parsed.rol || 'transportista',
-        });
+        setUsuario({ nombre: parsed.nombre || 'Transportista', rol: parsed.rol || 'transportista' });
+        if (parsed.rol === 'transportista') {
+          fetchEnvios();
+        }
       };
-      cargarUsuario();
+      cargar();
     }, [])
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      if (usuario.rol === 'transportista') {
-        fetchEnvios();
-      }
-    }, [usuario])
   );
 
   const onRefresh = async () => {
@@ -81,22 +78,19 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
+  // Determine color based on status
   const estadoColor = (estado: string) => {
     switch (estado.toLowerCase()) {
-      case 'entregado':
-        return '#28a745';
+      case 'entregado': return '#28a745';
       case 'en ruta':
-      case 'en curso':
-        return '#fd7e14';
-      case 'asignado':
-        return '#007bff';
-      case 'pendiente':
-        return '#6c757d';
-      default:
-        return '#adb5bd';
+      case 'en curso': return '#fd7e14';
+      case 'asignado': return '#007bff';
+      case 'pendiente': return '#6c757d';
+      default: return '#adb5bd';
     }
   };
 
+  // Render each shipment card
   const renderEnvio = ({ item, index }: { item: Envio; index: number }) => (
     <MotiView
       from={{ opacity: 0, translateY: 20 }}
@@ -133,7 +127,7 @@ export default function HomeScreen() {
   );
 
   return (
-    <LinearGradient colors={['#0f2027', '#2c5364']} style={styles.container}>
+    <LinearGradient colors={['#0140CD', '#0140CD']} style={styles.container}>
       <StatusBar barStyle="light-content" />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.dispatch(DrawerActions.openDrawer())}>
@@ -143,20 +137,14 @@ export default function HomeScreen() {
           <Text style={styles.greetingText}>Hola,</Text>
           <Text style={styles.greetingName}>{usuario.nombre}</Text>
         </View>
-        <Image
-          source={require('../assets/logo.png')}
-          style={styles.avatar}
-        />
+        <Image source={require('../assets/logo.png')} style={styles.avatar} />
       </View>
 
-      {usuario.rol === 'admin' ||usuario.rol === 'cliente' ? (
+      {usuario.rol === 'admin' || usuario.rol === 'cliente' ? (
         <View style={styles.adminContainer}>
           <Text style={styles.subtitle}>Panel de Administrador</Text>
-          <TouchableOpacity
-            style={styles.adminButton}
-            onPress={() => router.push('/crear-envio')}
-          >
-            <Ionicons name="add-circle-outline" size={24} color="#fff" style={{ marginRight: 8 }} />
+          <TouchableOpacity style={styles.adminButton} onPress={() => router.push('/crear-envio')}>
+            <Ionicons name="add-circle-outline" size={24} color="#0140CD" style={{ marginRight: 8 }} />
             <Text style={styles.adminButtonText}>Crear Envío</Text>
           </TouchableOpacity>
         </View>
@@ -171,12 +159,10 @@ export default function HomeScreen() {
       ) : (
         <FlatList
           data={envios}
-          keyExtractor={(item) => item.id_asignacion.toString()}
+          keyExtractor={item => item.id_asignacion.toString()}
           renderItem={renderEnvio}
           contentContainerStyle={{ paddingTop: 8, paddingBottom: 24 }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#28a745']} />
-          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0140CD']} />}
         />
       )}
     </LinearGradient>
@@ -185,31 +171,14 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 48,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-  },
+  header: { flexDirection: 'row', alignItems: 'center', paddingTop: 48, paddingHorizontal: 16, paddingBottom: 16 },
   greeting: { flex: 1, marginLeft: 12 },
   greetingText: { color: '#ccc', fontSize: 16 },
   greetingName: { color: '#fff', fontSize: 22, fontWeight: '700' },
   avatar: { width: 40, height: 40, borderRadius: 20 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   noData: { color: '#eee', fontSize: 16 },
-  card: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    marginHorizontal: 16,
-    borderRadius: 12,
-    padding: 16,
-    borderLeftWidth: 5,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-    elevation: 4,
-  },
+  card: { backgroundColor: 'rgba(255,255,255,0.1)', marginHorizontal: 16, borderRadius: 12, padding: 16, borderLeftWidth: 5, shadowColor: '#000', shadowOpacity: 0.2, shadowOffset: { width: 0, height: 4 }, shadowRadius: 8, elevation: 4 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   cardTitle: { color: '#fff', fontSize: 18, fontWeight: '600', marginLeft: 8 },
   cardSub: { color: '#ccc', fontSize: 14, marginBottom: 12 },
@@ -217,13 +186,6 @@ const styles = StyleSheet.create({
   estadoText: { color: '#fff', paddingVertical: 4, paddingHorizontal: 12, fontSize: 12 },
   adminContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16 },
   subtitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
-  adminButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#28a745',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-  },
-  adminButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  adminButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderWidth: 2, borderColor: '#0140CD', paddingVertical: 14, paddingHorizontal: 24, borderRadius: 12, shadowColor: '#000', shadowOpacity: 0.2, shadowOffset: { width: 0, height: 6 }, shadowRadius: 10, elevation: 6 },
+  adminButtonText: { color: '#0140CD', fontSize: 16, fontWeight: '600' },
 });

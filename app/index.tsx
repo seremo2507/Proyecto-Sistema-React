@@ -18,14 +18,13 @@ export default function WelcomeScreen() {
   const centerY = (height - LOGO_SIZE) / 2;
   const topY = 120;
 
-  // stages: 1 = moving to center, 2 = pause+pulse, 3 = move to top
   const [stage, setStage] = useState(1);
   const [showContent, setShowContent] = useState(false);
 
   useEffect(() => {
-    const toStage2 = setTimeout(() => setStage(2), 1000);    // after 1s at center start pulse
-    const toStage3 = setTimeout(() => setStage(3), 3000);    // after 3s start move up
-    const showTxt = setTimeout(() => setShowContent(true), 4000); // after 4s show text
+    const toStage2 = setTimeout(() => setStage(2), 1000);
+    const toStage3 = setTimeout(() => setStage(3), 3000);
+    const showTxt = setTimeout(() => setShowContent(true), 4000);
     return () => {
       clearTimeout(toStage2);
       clearTimeout(toStage3);
@@ -36,21 +35,9 @@ export default function WelcomeScreen() {
   return (
     <LinearGradient colors={['#0140CD', '#0140CD']} style={styles.container}>
       <MotiView
-        from={{ translateY: height, scale: 1 }}
-        animate={{
-          translateY: stage < 3 ? centerY : topY,
-          // pulse only until content is shown
-          scale: showContent ? 1 : stage >= 2 ? 1.2 : 1,
-        }}
-        transition={{
-          translateY: { type: 'timing', duration: 1000 },
-          scale: {
-            type: 'timing',
-            duration: 500,
-            loop: !showContent && stage >= 2,
-            repeatReverse: true,
-          },
-        }}
+        from={{ translateY: height }}
+        animate={{ translateY: stage < 3 ? centerY : topY }}
+        transition={{ type: 'timing', duration: 1000 }}
         style={[
           styles.logoContainer,
           {
@@ -80,7 +67,7 @@ export default function WelcomeScreen() {
           <MotiText
             from={{ opacity: 0, translateY: 20 }}
             animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 600, delay: 0 }}
+            transition={{ type: 'timing', duration: 600 }}
             style={styles.title}
           >
             Bienvenido a OrgaTrack
@@ -147,6 +134,8 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.2,
     shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 10,
+    elevation: 6,
   },
   buttonText: {
     color: '#0140CD',
