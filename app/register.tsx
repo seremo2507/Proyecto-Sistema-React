@@ -262,10 +262,10 @@ export default function RegisterScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0140CD' },
-  formWrapper: { flex:1, paddingHorizontal:24, paddingTop:40, justifyContent:'center' },
+  formWrapper: { flex:1, paddingHorizontal:24, paddingTop:80, justifyContent:'center' },
   inner: { flex:1, gap:16 },
   logoContainer: { alignItems:'center', marginBottom:16 },
-  logo: { width:120, height:120 },
+  logo: { width:100, height:100 },
   title: { fontSize:28, color:'#fff', fontWeight:'700', textAlign:'center', marginBottom:16 },
   inputContainer: { flexDirection:'row', alignItems:'center', backgroundColor:'rgba(255,255,255,0.15)', borderRadius:12, paddingHorizontal:12, height:48, marginBottom:4 },
   input: { flex:1, color:'#fff', marginLeft:8, fontSize:16 },
