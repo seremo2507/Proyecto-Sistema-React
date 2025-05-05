@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import {
   View,
@@ -14,16 +14,15 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MotiView } from 'moti';
+import { MotiView, AnimatePresence } from 'moti';
+import { Easing } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
-import { Easing } from 'react-native-reanimated';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { width } = Dimensions.get('window');
 
-  // estado de formulario
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [focused, setFocused] = useState<'email' | 'password' | null>(null);
@@ -32,18 +31,31 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
-
-  // clave de recarga para el <MotiView>
   const [reloadKey, setReloadKey] = useState(0);
 
-  // cuando la pantalla gana foco, incrementamos reloadKey
+  // Replay animations on screen focus
   useFocusEffect(
     useCallback(() => {
       setReloadKey(k => k + 1);
     }, [])
   );
 
-  // validaciones
+  // Auto-dismiss success toast after 2s
+  useEffect(() => {
+    if (success) {
+      const t = setTimeout(() => setSuccess(false), 2000);
+      return () => clearTimeout(t);
+    }
+  }, [success]);
+
+  // Auto-dismiss error toast after 2s
+  useEffect(() => {
+    if (error) {
+      const t = setTimeout(() => setError(''), 2000);
+      return () => clearTimeout(t);
+    }
+  }, [error]);
+
   const emailRegex = /^[\w-.]+@[\w-]+\.[a-z]{2,}$/i;
   const isEmailValid = emailRegex.test(email);
   const isPasswordValid = password.length >= 6;
@@ -51,7 +63,7 @@ export default function LoginScreen() {
 
   const handleBlur = (field: 'email' | 'password') => {
     setFocused(null);
-    setTouched(p => ({ ...p, [field]: true }));
+    setTouched(prev => ({ ...prev, [field]: true }));
   };
 
   const handleLogin = async () => {
@@ -83,7 +95,6 @@ export default function LoginScreen() {
 
   return (
     <LinearGradient colors={['#0140CD', '#0140CD']} style={styles.container}>
-      {/* Aquí montamos el MotiView con key=reloadKey */}
       <MotiView
         key={reloadKey}
         from={{ opacity: 0, translateX: width }}
@@ -111,13 +122,10 @@ export default function LoginScreen() {
             }}
             style={styles.logoContainer}
           >
-            <Image
-              source={require('../assets/logo.png')}
-              style={styles.logo}
-            />
+            <Image source={require('../assets/logo.png')} style={styles.logo} />
           </MotiView>
 
-          {/* Título */}
+          {/* Title */}
           <MotiView
             from={{ opacity: 0, translateY: -10 }}
             animate={{ opacity: 1, translateY: 0 }}
@@ -131,7 +139,7 @@ export default function LoginScreen() {
             <Text style={styles.title}>¡Bienvenido!</Text>
           </MotiView>
 
-          {/* Input Correo */}
+          {/* Email Input */}
           <MotiView
             from={{ opacity: 0, translateX: -width * 0.5 }}
             animate={{ opacity: 1, translateX: 0 }}
@@ -169,7 +177,7 @@ export default function LoginScreen() {
             <Text style={styles.errorText}>Correo inválido</Text>
           )}
 
-          {/* Input Contraseña */}
+          {/* Password Input */}
           <MotiView
             from={{ opacity: 0, translateX: width * 0.5 }}
             animate={{ opacity: 1, translateX: 0 }}
@@ -208,7 +216,7 @@ export default function LoginScreen() {
             </Text>
           )}
 
-          {/* Botón Iniciar Sesión */}
+          {/* Login Button */}
           <MotiView
             from={{ opacity: 0, scale: 0.8 }}
             animate={{
@@ -228,58 +236,60 @@ export default function LoginScreen() {
             </Pressable>
           </MotiView>
 
-          {/* Link a Registro */}
-          <Pressable
-            onPress={() => router.push('/register')}
-            style={styles.registerLink}
-          >
-            <Text style={styles.registerText}>
-              ¿No tienes cuenta? Regístrate
-            </Text>
+          {/* Register Link */}
+          <Pressable onPress={() => router.push('/register')} style={styles.registerLink}>
+            <Text style={styles.registerText}>¿No tienes cuenta? Regístrate</Text>
           </Pressable>
         </KeyboardAvoidingView>
       </MotiView>
 
-      {/* Toasts */}
-      {success && (
-        <MotiView
-          from={{ opacity: 0, translateY: 80 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 300 }}
-          style={[styles.toast, { backgroundColor: '#d4edda' }]}
-        >
-          <Feather name="check-circle" size={20} color="#155724" />
-          <Text style={[styles.toastText, { color: '#155724' }]}>
-            Inicio de sesión exitoso
-          </Text>
-        </MotiView>
-      )}
-      {!!error && (
-        <MotiView
-          from={{ opacity: 0, translateY: 80 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 300 }}
-          style={[styles.toast, { backgroundColor: '#fdecea' }]}
-        >
-          <Feather name="x-circle" size={20} color="#dc3545" />
-          <Text style={[styles.toastText, { color: '#dc3545' }]}>
-            {error}
-          </Text>
-        </MotiView>
-      )}
+      {/* Success Toast */}
+      <AnimatePresence>
+        {success && (
+          <MotiView
+            from={{ opacity: 0, translateY: 80 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            exit={{ opacity: 0, translateY: 80 }}
+            transition={{ type: 'timing', duration: 300 }}
+            style={[styles.toast, { backgroundColor: '#d4edda' }]}
+          >
+            <Feather name="check-circle" size={20} color="#155724" />
+            <Text style={[styles.toastText, { color: '#155724' }]}>
+              Inicio de sesión exitoso
+            </Text>
+          </MotiView>
+        )}
+      </AnimatePresence>
+
+      {/* Error Toast */}
+      <AnimatePresence>
+        {!!error && (
+          <MotiView
+            from={{ opacity: 0, translateY: 80 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            exit={{ opacity: 0, translateY: 80 }}
+            transition={{ type: 'timing', duration: 300 }}
+            style={[styles.toast, { backgroundColor: '#fdecea' }]}
+          >
+            <Feather name="x-circle" size={20} color="#dc3545" />
+            <Text style={[styles.toastText, { color: '#dc3545' }]}>
+              {error}
+            </Text>
+          </MotiView>
+        )}
+      </AnimatePresence>
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0140CD' },
-  gradient: { flex: 1 },
   formWrapper: {
     flex: 1,
     paddingHorizontal: 24,
+    paddingTop: 120,        // mueve el formulario un poco hacia abajo
     justifyContent: 'center',
-    paddingTop: 120,      // <— aquí ajustas cuánto lo bajas
-    },
+  },
   inner: { flex: 1, gap: 16 },
   logoContainer: { alignItems: 'center', marginBottom: 16 },
   logo: { width: 120, height: 120 },
