@@ -39,14 +39,10 @@ export default function HomeScreen() {
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        setEnvios([]);
-        return;
-      }
-      const res = await fetch(
-        'https://api-4g7v.onrender.com/api/envios/mis-envios-transportista',
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      if (!token) { setEnvios([]); return; }
+      const res = await fetch('https://api-4g7v.onrender.com/api/envios/mis-envios-transportista', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       setEnvios(data || []);
     } catch (err) {
@@ -63,9 +59,10 @@ export default function HomeScreen() {
       const cargar = async () => {
         const raw = await AsyncStorage.getItem('usuario');
         const parsed = raw ? JSON.parse(raw) : {};
-        setUsuario({ nombre: parsed.nombre || 'Transportista', rol: parsed.rol || 'transportista' });
-        if (parsed.rol === 'transportista') {
-          fetchEnvios();
+        const rol = parsed.rol || 'transportista';
+        setUsuario({ nombre: parsed.nombre || 'Usuario', rol });
+        if (rol === 'transportista') {
+          await fetchEnvios();
         }
       };
       cargar();
@@ -74,11 +71,13 @@ export default function HomeScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchEnvios();
+    if (usuario.rol === 'transportista') {
+      await fetchEnvios();
+    }
     setRefreshing(false);
   };
 
-  // Determine color based on status
+  // Status color helper
   const estadoColor = (estado: string) => {
     switch (estado.toLowerCase()) {
       case 'entregado': return '#28a745';
@@ -90,12 +89,12 @@ export default function HomeScreen() {
     }
   };
 
-  // Render each shipment card
+  // Render shipment
   const renderEnvio = ({ item, index }: { item: Envio; index: number }) => (
     <MotiView
       from={{ opacity: 0, translateY: 20 }}
       animate={{ opacity: 1, translateY: 0 }}
-      transition={{ delay: index * 100, type: 'timing' }}
+      transition={{ delay: index * 100 }}
       style={{ marginBottom: 16 }}
     >
       <TouchableOpacity
@@ -103,10 +102,7 @@ export default function HomeScreen() {
         onPress={() =>
           router.replace({
             pathname: '/detalle-envio',
-            params: {
-              id_asignacion: item.id_asignacion.toString(),
-              refresh: Date.now().toString(),
-            },
+            params: { id_asignacion: item.id_asignacion.toString() },
           })
         }
       >
@@ -140,7 +136,7 @@ export default function HomeScreen() {
         <Image source={require('../assets/logo.png')} style={styles.avatar} />
       </View>
 
-      {usuario.rol === 'admin' || usuario.rol === 'cliente' ? (
+      {(usuario.rol === 'admin' || usuario.rol === 'cliente') ? (
         <View style={styles.adminContainer}>
           <Text style={styles.subtitle}>Panel de Administrador</Text>
           <TouchableOpacity style={styles.adminButton} onPress={() => router.push('/crear-envio')}>
@@ -148,22 +144,24 @@ export default function HomeScreen() {
             <Text style={styles.adminButtonText}>Crear Envío</Text>
           </TouchableOpacity>
         </View>
-      ) : loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#fff" />
-        </View>
-      ) : envios.length === 0 ? (
-        <View style={styles.loadingContainer}>
-          <Text style={styles.noData}>No tienes envíos asignados.</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={envios}
-          keyExtractor={item => item.id_asignacion.toString()}
-          renderItem={renderEnvio}
-          contentContainerStyle={{ paddingTop: 8, paddingBottom: 24 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0140CD']} />}
-        />
+      ) : usuario.rol === 'transportista' && (
+        loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#fff" />
+          </View>
+        ) : envios.length === 0 ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.noData}>No tienes envíos asignados.</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={envios}
+            keyExtractor={item => item.id_asignacion.toString()}
+            renderItem={renderEnvio}
+            contentContainerStyle={{ paddingTop: 8, paddingBottom: 24 }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0140CD']} />}
+          />
+        )
       )}
     </LinearGradient>
   );
@@ -178,7 +176,7 @@ const styles = StyleSheet.create({
   avatar: { width: 40, height: 40, borderRadius: 20 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   noData: { color: '#eee', fontSize: 16 },
-  card: { backgroundColor: 'rgba(255,255,255,0.1)', marginHorizontal: 16, borderRadius: 12, padding: 16, borderLeftWidth: 5, shadowColor: '#000', shadowOpacity: 0.2, shadowOffset: { width: 0, height: 4 }, shadowRadius: 8, elevation: 4 },
+  card: { backgroundColor: 'rgba(255,255,255,0.1)', marginHorizontal: 16, borderRadius: 12, padding: 16, shadowColor: '#000', shadowOpacity: 0.2, shadowOffset: { width: 0, height: 4 }, shadowRadius: 8, elevation: 4 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   cardTitle: { color: '#fff', fontSize: 18, fontWeight: '600', marginLeft: 8 },
   cardSub: { color: '#ccc', fontSize: 14, marginBottom: 12 },
