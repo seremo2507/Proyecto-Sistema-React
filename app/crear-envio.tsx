@@ -15,9 +15,11 @@ import {
   Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import MapView, { Marker } from 'react-native-maps';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MotiView } from 'moti';
 
 // --- Tipos ---
 type Coordenada = { latitude: number; longitude: number };
@@ -108,7 +110,7 @@ export default function CrearEnvio() {
     tipoTransporteLabel: '',
   });
 
-  // --- Carga inicial de ubicaciones ---
+  // --- Carga inicial de ubicaciones (filtra duplicados) ---
   useEffect(() => {
     (async () => {
       const token = await AsyncStorage.getItem('token');
@@ -116,7 +118,14 @@ export default function CrearEnvio() {
       const ru = await fetch(`${API_BASE}/ubicaciones/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setUbicaciones(await ru.json());
+      const todas: UbicacionAPI[] = await ru.json();
+      const visto = new Set<string>();
+      const únicas = todas.filter(u => {
+        if (visto.has(u._id)) return false;
+        visto.add(u._id);
+        return true;
+      });
+      setUbicaciones(únicas);
     })();
   }, []);
 
@@ -124,8 +133,7 @@ export default function CrearEnvio() {
   const handleChange = (k: keyof FormularioEnvio, v: any) =>
     setForm(f => ({ ...f, [k]: v } as any));
   const updateCarga = (i: number, f: keyof Carga, v: any) => {
-    const c = [...form.cargas];
-    c[i] = { ...c[i], [f]: v };
+    const c = [...form.cargas]; c[i] = { ...c[i], [f]: v };
     setForm(fm => ({ ...fm, cargas: c }));
   };
   const agregarCarga = () =>
@@ -134,13 +142,11 @@ export default function CrearEnvio() {
       cargas: [...fm.cargas, { tipo: '', variedad: '', empaquetado: '', cantidad: 0, peso: 0 }],
     }));
 
-  // --- Función crear envío con logs y id_tipo_transporte ---
+  // --- Crear envío ---
   const crearEnvio = async () => {
-    console.log('▶️ iniciar crearEnvio');
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('token');
-      console.log('Token obtenido:', token);
       if (!token) throw new Error('No autenticado');
 
       const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
@@ -153,21 +159,14 @@ export default function CrearEnvio() {
         coordenadasDestino: [form.destino.latitude, form.destino.longitude],
         segmentos: [],
       };
-      console.log('📍 Payload /ubicaciones/:', payloadUbic);
       const ru = await fetch(`${API_BASE}/ubicaciones/`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payloadUbic),
+        method: 'POST', headers, body: JSON.stringify(payloadUbic),
       });
-      console.log('Response ubicaciones status:', ru.status);
       const dataUb = await ru.json();
-      console.log('Response ubicaciones body:', dataUb);
-      if (!ru.ok) throw new Error(`Error ubicación: ${dataUb.error || ru.status}`);
+      if (!ru.ok) throw new Error(dataUb.error || 'Error ubicación');
       const idUb = dataUb._id;
-      console.log('ID ubicación creada:', idUb);
 
-      // 2) Preparar partición con id_tipo_transporte
-      console.log('TipoTransporteId:', tipoTransporteId);
+      // 2) Partición
       const particion = {
         id_tipo_transporte: tipoTransporteId,
         recogidaEntrega: {
@@ -179,42 +178,28 @@ export default function CrearEnvio() {
         },
         cargas: form.cargas,
       };
-      console.log('📦 Payload partición:', particion);
 
       // 3) Crear envío
-      const payloadEnv = { id_ubicacion_mongo: idUb, particiones: [particion] };
-      console.log('✈️ Payload /envios/:', payloadEnv);
       const ev = await fetch(`${API_BASE}/envios/`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payloadEnv),
+        method:'POST', headers,
+        body: JSON.stringify({ id_ubicacion_mongo: idUb, particiones: [particion] }),
       });
-      console.log('Response envios status:', ev.status);
       const dataEnv = await ev.json();
-      console.log('Response envios body:', dataEnv);
-      if (!ev.ok) throw new Error(`Error envío: ${dataEnv.error || ev.status}`);
+      if (!ev.ok) throw new Error(dataEnv.error || 'Error envío');
 
       Alert.alert('¡Éxito!', 'Envío creado correctamente');
-      console.log('✅ crearEnvio finalizado');
-
-      // Reset form
+      // Reset
       setForm({
-        origen: { latitude: 0, longitude: 0 },
-        destino: { latitude: 0, longitude: 0 },
-        fecha: '',
-        horaRecogida: '',
-        horaEntrega: '',
-        instruccionesRecogida: '',
-        instruccionesEntrega: '',
-        cargas: [{ tipo: '', variedad: '', empaquetado: '', cantidad: 0, peso: 0 }],
-        tipoTransporteLabel: '',
+        origen:{latitude:0,longitude:0},
+        destino:{latitude:0,longitude:0},
+        fecha:'',horaRecogida:'',horaEntrega:'',
+        instruccionesRecogida:'',instruccionesEntrega:'',
+        cargas:[{tipo:'',variedad:'',empaquetado:'',cantidad:0,peso:0}],
+        tipoTransporteLabel:'',
       });
-      setOrigenLabel('');
-      setDestinoLabel('');
-      setTipoTransporteId(null);
-      setPaso(0);
+      setOrigenLabel(''); setDestinoLabel(''); setTipoTransporteId(null); setPaso(0);
+
     } catch (e) {
-      console.error('❌ Error en crearEnvio:', e);
       Alert.alert('Error', (e as Error).message);
     } finally {
       setLoading(false);
@@ -225,96 +210,114 @@ export default function CrearEnvio() {
   const siguiente = () => paso < pasos.length - 1 && setPaso(paso + 1);
   const anterior = () => paso > 0 && setPaso(paso - 1);
 
-  // --- Render de cada paso ---
-  const renderPaso0 = () => (
-    <>
-      <Text style={styles.label}>Origen guardado:</Text>
-      <Pressable style={styles.input} onPress={() => setShowOrigenModal(true)}>
-        <Text style={origenLabel ? styles.inputText : styles.inputPlaceholder}>
-          {origenLabel || 'Selecciona origen'}
-        </Text>
-      </Pressable>
-      <Text style={styles.label}>Destino guardado:</Text>
-      <Pressable style={styles.input} onPress={() => setShowDestinoModal(true)}>
-        <Text style={destinoLabel ? styles.inputText : styles.inputPlaceholder}>
-          {destinoLabel || 'Selecciona destino'}
-        </Text>
-      </Pressable>
-      <MapView
-        style={styles.map}
-        initialRegion={{
-          latitude: form.origen.latitude || -17.78,
-          longitude: form.origen.longitude || -63.18,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}>
-        {form.origen.latitude !== 0 && (
-          <Marker key="m-origen" coordinate={form.origen} title={origenLabel} />
-        )}
-        {form.destino.latitude !== 0 && (
-          <Marker key="m-destino" pinColor="green" coordinate={form.destino} title={destinoLabel} />
-        )}
-      </MapView>
-      <Modal visible={showOrigenModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Elige Origen</Text>
-            {ubicaciones.map((u, idx) => (
-              <Pressable
-                key={`${u._id}-${idx}`}
-                style={styles.modalOption}
-                onPress={() => {
-                  handleChange('origen', {
-                    latitude: u.coordenadasOrigen[0],
-                    longitude: u.coordenadasOrigen[1],
-                  });
-                  setOrigenLabel(u.nombreOrigen);
-                  setShowOrigenModal(false);
-                }}>
-                <Text style={styles.modalOptionText}>{u.nombreOrigen}</Text>
-              </Pressable>
-            ))}
-            <Pressable style={styles.modalCancelBtn} onPress={() => setShowOrigenModal(false)}>
-              <Text style={styles.modalCancelText}>Cancelar</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-      <Modal visible={showDestinoModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Elige Destino</Text>
-            {ubicaciones.map((u, idx) => (
-              <Pressable
-                key={`${u._id}-d-${idx}`}
-                style={styles.modalOption}
-                onPress={() => {
-                  handleChange('destino', {
-                    latitude: u.coordenadasDestino[0],
-                    longitude: u.coordenadasDestino[1],
-                  });
-                  setDestinoLabel(u.nombreDestino);
-                  setShowDestinoModal(false);
-                }}>
-                <Text style={styles.modalOptionText}>{u.nombreDestino}</Text>
-              </Pressable>
-            ))}
-            <Pressable style={styles.modalCancelBtn} onPress={() => setShowDestinoModal(false)}>
-              <Text style={styles.modalCancelText}>Cancelar</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-    </>
-  );
+  // --- Render Paso 0 (sin duplicados) ---
+  const renderPaso0 = () => {
+    const origenesUnicos = ubicaciones.filter(
+      (u, i, arr) => arr.findIndex(x => x.nombreOrigen === u.nombreOrigen) === i
+    );
+    const destinosUnicos = ubicaciones.filter(
+      (u, i, arr) => arr.findIndex(x => x.nombreDestino === u.nombreDestino) === i
+    );
 
+    return (
+      <>
+        <Text style={styles.label}>Origen:</Text>
+        <Pressable style={styles.input} onPress={() => setShowOrigenModal(true)}>
+          <Text style={origenLabel ? styles.inputText : styles.inputPlaceholder}>
+            {origenLabel || 'Selecciona origen'}
+          </Text>
+        </Pressable>
+
+        <Text style={styles.label}>Destino:</Text>
+        <Pressable style={styles.input} onPress={() => setShowDestinoModal(true)}>
+          <Text style={destinoLabel ? styles.inputText : styles.inputPlaceholder}>
+            {destinoLabel || 'Selecciona destino'}
+          </Text>
+        </Pressable>
+
+        <MapView
+          style={styles.map}
+          initialRegion={{
+            latitude: form.origen.latitude || -17.78,
+            longitude: form.origen.longitude || -63.18,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          }}>
+          {form.origen.latitude !== 0 && (
+            <Marker key="mo" coordinate={form.origen} title={origenLabel} />
+          )}
+          {form.destino.latitude !== 0 && (
+            <Marker key="md" pinColor="green" coordinate={form.destino} title={destinoLabel} />
+          )}
+        </MapView>
+
+        {/* Modal Origen */}
+        <Modal visible={showOrigenModal} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalBox}>
+              <Text style={styles.modalTitle}>Elige Origen</Text>
+              {origenesUnicos.map(u => (
+                <Pressable
+                  key={u._id}
+                  style={styles.modalOption}
+                  onPress={() => {
+                    handleChange('origen', {
+                      latitude: u.coordenadasOrigen[0],
+                      longitude: u.coordenadasOrigen[1],
+                    });
+                    setOrigenLabel(u.nombreOrigen);
+                    setShowOrigenModal(false);
+                  }}>
+                  <Text style={styles.modalOptionText}>{u.nombreOrigen}</Text>
+                </Pressable>
+              ))}
+              <Pressable style={styles.modalCancelBtn} onPress={() => setShowOrigenModal(false)}>
+                <Text style={styles.modalCancelText}>Cancelar</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Modal Destino */}
+        <Modal visible={showDestinoModal} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalBox}>
+              <Text style={styles.modalTitle}>Elige Destino</Text>
+              {destinosUnicos.map(u => (
+                <Pressable
+                  key={u._id + '-d'}
+                  style={styles.modalOption}
+                  onPress={() => {
+                    handleChange('destino', {
+                      latitude: u.coordenadasDestino[0],
+                      longitude: u.coordenadasDestino[1],
+                    });
+                    setDestinoLabel(u.nombreDestino);
+                    setShowDestinoModal(false);
+                  }}>
+                  <Text style={styles.modalOptionText}>{u.nombreDestino}</Text>
+                </Pressable>
+              ))}
+              <Pressable
+                style={styles.modalCancelBtn}
+                onPress={() => setShowDestinoModal(false)}>
+                <Text style={styles.modalCancelText}>Cancelar</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+      </>
+    );
+  };
+
+  // --- Render Paso 1 ---
   const renderPaso1 = () => (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>Partición de envío</Text>
-      <Text style={styles.label}>Día</Text>
+      <Text style={styles.cardTitle}>Partición</Text>
+      <Text style={styles.label}>Fecha</Text>
       <Pressable style={styles.input} onPress={() => setShowDatePicker(true)}>
         <Text style={form.fecha ? styles.inputText : styles.inputPlaceholder}>
-          {form.fecha || 'Selecciona fecha'}
+          {form.fecha || 'YYYY-MM-DD'}
         </Text>
       </Pressable>
       {showDatePicker && (
@@ -324,18 +327,14 @@ export default function CrearEnvio() {
           display="default"
           onChange={(_, d) => {
             setShowDatePicker(false);
-            if (d) {
-              // Ahora usamos formato ISO YYYY-MM-DD
-              const fechaISO = d.toISOString().slice(0, 10);
-              handleChange('fecha', fechaISO);
-            }
+            if (d) handleChange('fecha', d.toISOString().slice(0, 10));
           }}
         />
       )}
-      <Text style={styles.label}>Hora recogida</Text>
+      <Text style={styles.label}>Hora Recogida</Text>
       <Pressable style={styles.input} onPress={() => setShowTimeRec(true)}>
         <Text style={form.horaRecogida ? styles.inputText : styles.inputPlaceholder}>
-          {form.horaRecogida || 'Selecciona hora'}
+          {form.horaRecogida || 'HH:MM'}
         </Text>
       </Pressable>
       {showTimeRec && (
@@ -345,19 +344,18 @@ export default function CrearEnvio() {
           display="default"
           is24Hour
           onChange={(_, d) => {
-            setShowTimeRec(false);
-            if (d) {
+            setShowTimeRec(false); if (d) {
               const hh = d.getHours().toString().padStart(2, '0');
-              const mi = d.getMinutes().toString().padStart(2, '0');
-              handleChange('horaRecogida', `${hh}:${mi}`);
+              const mm = d.getMinutes().toString().padStart(2, '0');
+              handleChange('horaRecogida', `${hh}:${mm}`);
             }
           }}
         />
       )}
-      <Text style={styles.label}>Hora entrega</Text>
+      <Text style={styles.label}>Hora Entrega</Text>
       <Pressable style={styles.input} onPress={() => setShowTimeEnt(true)}>
         <Text style={form.horaEntrega ? styles.inputText : styles.inputPlaceholder}>
-          {form.horaEntrega || 'Selecciona hora'}
+          {form.horaEntrega || 'HH:MM'}
         </Text>
       </Pressable>
       {showTimeEnt && (
@@ -367,28 +365,25 @@ export default function CrearEnvio() {
           display="default"
           is24Hour
           onChange={(_, d) => {
-            setShowTimeEnt(false);
-            if (d) {
+            setShowTimeEnt(false); if (d) {
               const hh = d.getHours().toString().padStart(2, '0');
-              const mi = d.getMinutes().toString().padStart(2, '0');
-              handleChange('horaEntrega', `${hh}:${mi}`);
+              const mm = d.getMinutes().toString().padStart(2, '0');
+              handleChange('horaEntrega', `${hh}:${mm}`);
             }
           }}
         />
       )}
-      <Text style={styles.subTitle}>Información opcional</Text>
-      <Text style={styles.label}>Instrucciones recogida</Text>
+      <Text style={styles.subTitle}>Instrucciones (opcionales)</Text>
       <TextInput
         style={styles.input}
-        placeholder="..."
+        placeholder="Recogida..."
         placeholderTextColor="#999"
         value={form.instruccionesRecogida}
         onChangeText={t => handleChange('instruccionesRecogida', t)}
       />
-      <Text style={styles.label}>Instrucciones entrega</Text>
       <TextInput
         style={styles.input}
-        placeholder="..."
+        placeholder="Entrega..."
         placeholderTextColor="#999"
         value={form.instruccionesEntrega}
         onChangeText={t => handleChange('instruccionesEntrega', t)}
@@ -396,12 +391,13 @@ export default function CrearEnvio() {
     </View>
   );
 
+  // --- Render Paso 2 ---
   const renderPaso2 = () => (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>Detalles de la carga</Text>
+      <Text style={styles.cardTitle}>Cargas</Text>
       {form.cargas.map((c, i) => (
-        <View key={`carga-${i}`} style={styles.card}>
-          <Text style={styles.label}>Tipo de carga</Text>
+        <View key={`c${i}`} style={styles.card}>
+          <Text style={styles.label}>Tipo</Text>
           <Pressable
             style={styles.input}
             onPress={() => {
@@ -409,7 +405,7 @@ export default function CrearEnvio() {
               setShowCargaModal(true);
             }}>
             <Text style={c.tipo ? styles.inputText : styles.inputPlaceholder}>
-              {c.tipo || 'Seleccionar tipo'}
+              {c.tipo || 'Seleccionar'}
             </Text>
           </Pressable>
           <Text style={styles.label}>Variedad</Text>
@@ -420,10 +416,10 @@ export default function CrearEnvio() {
               setShowVariedadModal(true);
             }}>
             <Text style={c.variedad ? styles.inputText : styles.inputPlaceholder}>
-              {c.variedad || 'Seleccionar variedad'}
+              {c.variedad || 'Seleccionar'}
             </Text>
           </Pressable>
-          <Text style={styles.label}>Cantidad</Text>
+          <Text style={styles.label}>Cant.</Text>
           <View style={styles.counterRow}>
             <Pressable
               onPress={() => updateCarga(i, 'cantidad', Math.max(0, c.cantidad - 1))}
@@ -437,14 +433,6 @@ export default function CrearEnvio() {
               <Text style={styles.counterText}>+</Text>
             </Pressable>
           </View>
-          <Text style={styles.label}>Empaquetado</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ej: Caja"
-            placeholderTextColor="#999"
-            value={c.empaquetado}
-            onChangeText={t => updateCarga(i, 'empaquetado', t)}
-          />
           <Text style={styles.label}>Peso (kg)</Text>
           <View style={styles.counterRow}>
             <Pressable
@@ -463,14 +451,16 @@ export default function CrearEnvio() {
       ))}
       <Pressable style={styles.addBtn} onPress={agregarCarga}>
         <Ionicons name="add-circle" size={20} color="#0066cc" />
-        <Text style={styles.addText}>Añadir otra carga</Text>
+        <Text style={styles.addText}>Añadir carga</Text>
       </Pressable>
+
+      {/* Modal Cargas */}
       <Modal transparent visible={showCargaModal} animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
             {tiposCarga.map((t, idx) => (
               <Pressable
-                key={`tc-${idx}`}
+                key={idx}
                 style={styles.modalOption}
                 onPress={() => {
                   updateCarga(cargaModalIndex, 'tipo', t);
@@ -479,18 +469,22 @@ export default function CrearEnvio() {
                 <Text style={styles.modalOptionText}>{t}</Text>
               </Pressable>
             ))}
-            <Pressable style={styles.modalCancelBtn} onPress={() => setShowCargaModal(false)}>
+            <Pressable
+              style={styles.modalCancelBtn}
+              onPress={() => setShowCargaModal(false)}>
               <Text style={styles.modalCancelText}>Cancelar</Text>
             </Pressable>
           </View>
         </View>
       </Modal>
+
+      {/* Modal Variedad */}
       <Modal transparent visible={showVariedadModal} animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
             {variedadOptions.map((v, idx) => (
               <Pressable
-                key={`vo-${idx}`}
+                key={idx}
                 style={styles.modalOption}
                 onPress={() => {
                   updateCarga(variedadModalIndex, 'variedad', v);
@@ -499,7 +493,9 @@ export default function CrearEnvio() {
                 <Text style={styles.modalOptionText}>{v}</Text>
               </Pressable>
             ))}
-            <Pressable style={styles.modalCancelBtn} onPress={() => setShowVariedadModal(false)}>
+            <Pressable
+              style={styles.modalCancelBtn}
+              onPress={() => setShowVariedadModal(false)}>
               <Text style={styles.modalCancelText}>Cancelar</Text>
             </Pressable>
           </View>
@@ -508,13 +504,14 @@ export default function CrearEnvio() {
     </View>
   );
 
+  // --- Render Paso 3 ---
   const renderPaso3 = () => (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>Selección del tipo de transporte</Text>
+      <Text style={styles.cardTitle}>Transporte</Text>
       <View style={styles.transportRow}>
         {transportes.map((tipo, idx) => (
           <Pressable
-            key={`tr-${idx}`}
+            key={idx}
             style={[
               styles.transportCard,
               form.tipoTransporteLabel === tipo && styles.transportActive,
@@ -530,12 +527,13 @@ export default function CrearEnvio() {
       </View>
       <Text style={styles.descText}>
         {form.tipoTransporteLabel
-          ? `Has seleccionado: ${form.tipoTransporteLabel}`
-          : 'Selecciona un tipo de transporte.'}
+          ? `Seleccionado: ${form.tipoTransporteLabel}`
+          : 'Selecciona un transporte'}
       </Text>
     </View>
   );
 
+  // --- Render Paso 4 ---
   const renderPaso4 = () => (
     <View style={styles.card}>
       <Text style={styles.cardTitle}>Resumen</Text>
@@ -545,8 +543,8 @@ export default function CrearEnvio() {
       <Text style={styles.resumen}>Recogida: {form.horaRecogida}</Text>
       <Text style={styles.resumen}>Entrega: {form.horaEntrega}</Text>
       {form.cargas.map((c, i) => (
-        <Text key={`res-${i}`} style={styles.resumen}>
-          Carga {i + 1}: {c.tipo}, {c.variedad}, {c.cantidad} uds, {c.peso} kg.
+        <Text key={i} style={styles.resumen}>
+          {c.tipo} {c.variedad} — {c.cantidad} uds — {c.peso} kg
         </Text>
       ))}
       <Text style={styles.resumen}>Transporte: {form.tipoTransporteLabel}</Text>
@@ -555,109 +553,142 @@ export default function CrearEnvio() {
 
   const renderContenido = () => {
     switch (paso) {
-      case 0: return renderPaso0();
-      case 1: return renderPaso1();
-      case 2: return renderPaso2();
-      case 3: return renderPaso3();
-      case 4: return renderPaso4();
-      default: return null;
+      case 0:
+        return renderPaso0();
+      case 1:
+        return renderPaso1();
+      case 2:
+        return renderPaso2();
+      case 3:
+        return renderPaso3();
+      case 4:
+        return renderPaso4();
+      default:
+        return null;
     }
   };
 
   return (
-    <View style={styles.container}>
-      {/* Stepper */}
-      <View style={styles.stepper}>
-        {pasos.map((_, i) => (
-          <React.Fragment key={`step-${i}`}>
-            <View style={[styles.circle, i <= paso && styles.circleActive]}>
-              <Text style={[styles.circleText, i <= paso && styles.circleTextActive]}>{i + 1}</Text>
-            </View>
-            {i < pasos.length - 1 && <View style={[styles.line, i < paso && styles.lineActive]} />}
-          </React.Fragment>
-        ))}
-      </View>
-      <View style={styles.labels}>
-        {pasos.map((l, i) => (
-          <Text key={`label-${i}`} style={[styles.labelStep, i <= paso && styles.labelActive]}>{l}</Text>
-        ))}
-      </View>
+    <LinearGradient colors={['#0140CD', '#0140CD']} style={loginStyles.container}>
+      <MotiView
+        from={{ opacity: 0, translateX: W }}
+        animate={{ opacity: 1, translateX: 0 }}
+        transition={{ type: 'timing', duration: 500 }}
+        style={loginStyles.formWrapper}
+      >
+        <View style={styles.inner}>
+          {/* Stepper */}
+          <View style={styles.stepper}>
+            {pasos.map((_, i) => (
+              <React.Fragment key={i}>
+                <View style={[styles.circle, i <= paso && styles.circleActive]}>
+                  <Text style={[styles.circleText, i <= paso && styles.circleTextActive]}>
+                    {i + 1}
+                  </Text>
+                </View>
+                {i < pasos.length - 1 && (
+                  <View style={[styles.line, i < paso && styles.lineActive]} />
+                )}
+              </React.Fragment>
+            ))}
+          </View>
+          <View style={styles.labels}>
+            {pasos.map((l, i) => (
+              <Text key={i} style={[styles.labelStep, i <= paso && styles.labelActive]}>
+                {l}
+              </Text>
+            ))}
+          </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>{renderContenido()}</ScrollView>
+          <ScrollView contentContainerStyle={styles.scroll}>{renderContenido()}</ScrollView>
 
-      {/* Navegación */}
-      <View style={styles.nav}>
-        {paso > 0 && !loading && (
-          <Pressable style={styles.navBtn} onPress={anterior} key="nav-back">
-            <Ionicons name="arrow-back" size={20} color="#fff" />
-            <Text style={styles.navText}>Atrás</Text>
-          </Pressable>
-        )}
-        {paso < pasos.length - 1 && !loading && (
-          <Pressable style={styles.navBtn} onPress={siguiente} key="nav-next">
-            <Text style={styles.navText}>Siguiente</Text>
-            <Ionicons name="arrow-forward" size={20} color="#fff" />
-          </Pressable>
-        )}
-        {paso === pasos.length - 1 && (
-          <Pressable style={[styles.navBtn, styles.finishBtn]} onPress={crearEnvio} disabled={loading} key="nav-finish">
-            {loading ? <ActivityIndicator color="#fff"/> : <Text style={styles.navText}>Crear Envío</Text>}
-          </Pressable>
-        )}
-      </View>
-    </View>
+          {/* Navegación */}
+          <View style={styles.nav}>
+            {paso > 0 && !loading && (
+              <Pressable style={styles.navBtn} onPress={anterior}>
+                <Ionicons name="arrow-back" size={20} color="#fff" />
+                <Text style={styles.navText}>Atrás</Text>
+              </Pressable>
+            )}
+            {paso < pasos.length - 1 && !loading && (
+              <Pressable style={styles.navBtn} onPress={siguiente}>
+                <Text style={styles.navText}>Siguiente</Text>
+                <Ionicons name="arrow-forward" size={20} color="#fff" />
+              </Pressable>
+            )}
+            {paso === pasos.length - 1 && (
+              <Pressable
+                style={[styles.navBtn, styles.finishBtn]}
+                onPress={crearEnvio}
+                disabled={loading}
+              >
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.navText}>Crear Envío</Text>}
+              </Pressable>
+            )}
+          </View>
+        </View>
+      </MotiView>
+    </LinearGradient>
   );
 }
 
-// --- Estilos ---
+// Estilos Login
+const loginStyles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#0140CD' },
+  formWrapper: { flex: 1, paddingHorizontal: 24, paddingTop: 80, justifyContent: 'center' },
+});
+
+// Estilos CrearEnvio
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  scroll: { padding: 16 },
-  stepper: { flexDirection:'row', alignItems:'center', padding:16 },
-  circle: { width:CIRCLE_DIAM, height:CIRCLE_DIAM, borderRadius:CIRCLE_DIAM/2, backgroundColor:'#ccc', justifyContent:'center', alignItems:'center' },
-  circleActive: { backgroundColor:'#0066cc' },
-  circleText: { color:'#666' },
-  circleTextActive: { color:'#fff' },
-  line: { flex:1, height:4, backgroundColor:'#ccc' },
-  lineActive: { backgroundColor:'#0066cc' },
-  labels: { flexDirection:'row', justifyContent:'space-between', paddingHorizontal:16 },
-  labelStep:{ fontSize:12, color:'#999' },
-  labelActive:{ color:'#333' },
-
-  label: { fontSize:14, color:'#333', marginBottom:4 },
-  input: { backgroundColor:'#fff', borderRadius:6, padding:10, marginBottom:12, borderWidth:1, borderColor:'#ddd' },
-  inputText:{ color:'#000' }, inputPlaceholder:{ color:'#999' },
-  map: { width:W-32, height:140, borderRadius:6, marginBottom:20 },
-  card:{ backgroundColor:'#fff', borderRadius:6, padding:16, marginBottom:16, borderWidth:1, borderColor:'#ddd' },
-  cardTitle:{ fontSize:16, fontWeight:'700', marginBottom:12, color:'#333' },
-  subTitle:{ fontSize:14, fontWeight:'600', marginTop:12, marginBottom:6, color:'#333' },
-
-  counterRow:{ flexDirection:'row', alignItems:'center', marginBottom:12 },
-  counterBtn:{ padding:8, backgroundColor:'#eee', borderRadius:4 },
-  counterText:{ fontSize:18 }, counterValue:{ marginHorizontal:12, fontSize:16 },
-
-  addBtn:{ flexDirection:'row', alignItems:'center', marginTop:8 },
-  addText:{ marginLeft:6, color:'#0066cc', fontSize:14 },
-
-  modalOverlay:{ flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'center', alignItems:'center' },
-  modalBox:{ backgroundColor:'#fff', borderRadius:6, width:'80%', padding:16 },
-  modalTitle:{ fontSize:18, fontWeight:'700', marginBottom:12, textAlign:'center' },
-  modalOption:{ padding:12, borderBottomWidth:1, borderBottomColor:'#eee' },
-  modalOptionText:{ fontSize:16, color:'#333', textAlign:'center' },
-  modalCancelBtn:{ marginTop:12, backgroundColor:'#dc3545', borderRadius:6, padding:10 },
-  modalCancelText:{ color:'#fff', fontWeight:'700', textAlign:'center' },
-
-  transportRow:{ flexDirection:'row', justifyContent:'space-between' },
-  transportCard:{ flex:1, alignItems:'center', padding:12, backgroundColor:'#fff', borderRadius:6, margin:4, borderWidth:1, borderColor:'#ddd' },
-  transportActive:{ borderColor:'#0066cc' },
-  transportIcon:{ width:48, height:48, marginBottom:8 },
-  transportLabel:{ fontSize:14, color:'#333' },
-  descText:{ marginTop:12, fontSize:14, color:'#666' },
-
-  resumen:{ fontSize:14, color:'#333', marginBottom:4 },
-
-  nav:{ flexDirection:'row', justifyContent:'space-between', padding:16 },
-  navBtn:{ flexDirection:'row', alignItems:'center', backgroundColor:'#0066cc', padding:12, borderRadius:6 },
-  navText:{ color:'#fff', fontWeight:'600', marginHorizontal:6 },
-  finishBtn:{ backgroundColor:'#28a745' },
+  inner: { flex: 1 },
+  scroll: { paddingVertical: 16 },
+  stepper: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 },
+  circle: {
+    width: CIRCLE_DIAM,
+    height: CIRCLE_DIAM,
+    borderRadius: CIRCLE_DIAM / 2,
+    backgroundColor: '#ccc',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  circleActive: { backgroundColor: '#fff' },
+  circleText: { color: '#666' },
+  circleTextActive: { color: '#0140CD' },
+  line: { flex: 1, height: 4, backgroundColor: '#ccc' },
+  lineActive: { backgroundColor: '#fff' },
+  labels: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 8 },
+  labelStep: { fontSize: 12, color: '#eee' },
+  labelActive: { color: '#fff' },
+  label: { fontSize: 14, color: '#333', marginBottom: 4 },
+  input: { backgroundColor: '#fff', borderRadius: 6, padding: 10, marginBottom: 12, borderWidth: 1, borderColor: '#ddd' },
+  inputText: { color: '#000' },
+  inputPlaceholder: { color: '#999' },
+  map: { width: W - 40, height: 300, borderRadius: 8, marginBottom: 20 },
+  card: { backgroundColor: '#fff', borderRadius: 6, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#ddd' },
+  cardTitle: { fontSize: 16, fontWeight: '700', marginBottom: 12, color: '#333' },
+  subTitle: { fontSize: 14, fontWeight: '600', marginTop: 12, marginBottom: 6, color: '#333' },
+  counterRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  counterBtn: { padding: 8, backgroundColor: '#eee', borderRadius: 4 },
+  counterText: { fontSize: 18 },
+  counterValue: { marginHorizontal: 12, fontSize: 16 },
+  addBtn: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  addText: { marginLeft: 6, color: '#0066cc', fontSize: 14 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  modalBox: { backgroundColor: '#fff', borderRadius: 6, width: '80%', padding: 16 },
+  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12, textAlign: 'center' },
+  modalOption: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  modalOptionText: { fontSize: 16, color: '#333', textAlign: 'center' },
+  modalCancelBtn: { marginTop: 12, backgroundColor: '#dc3545', borderRadius: 6, padding: 10 },
+  modalCancelText: { color: '#fff', fontWeight: '700', textAlign: 'center' },
+  transportRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  transportCard: { flex: 1, alignItems: 'center', padding: 12, backgroundColor: '#fff', borderRadius: 6, margin: 4, borderWidth: 1, borderColor: '#ddd' },
+  transportActive: { borderColor: '#0140CD' },
+  transportIcon: { width: 48, height: 48, marginBottom: 8 },
+  transportLabel: { fontSize: 14, color: '#333' },
+  descText: { marginTop: 12, fontSize: 14, color: '#666' },
+  resumen: { fontSize: 14, color: '#333', marginBottom: 4 },
+  nav: { flexDirection: 'row', justifyContent: 'space-between', padding: 16 },
+  navBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 12, borderRadius: 6 },
+  navText: { color: '#0140CD', fontWeight: '600', marginHorizontal: 6 },
+  finishBtn: { backgroundColor: '#28a745' },
 });
