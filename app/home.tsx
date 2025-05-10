@@ -139,7 +139,7 @@ export default function HomeScreen() {
       {(usuario.rol === 'admin' || usuario.rol === 'cliente') ? (
         <View style={styles.adminContainer}>
           <Text style={styles.subtitle}>Panel de Administrador</Text>
-          <TouchableOpacity style={styles.adminButton} onPress={() => router.push('/crear-envio')}>
+          <TouchableOpacity style={styles.adminButton} onPress={() => router.push('/crear-envio/CrearEnvio')}>
             <Ionicons name="add-circle-outline" size={24} color="#0140CD" style={{ marginRight: 8 }} />
             <Text style={styles.adminButtonText}>Crear Envío</Text>
           </TouchableOpacity>
