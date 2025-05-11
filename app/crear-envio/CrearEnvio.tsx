@@ -1,9 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, ScrollView, Alert, Modal, ActivityIndicator, TextInput, Platform } from 'react-native';
+import { 
+  View, 
+  Text, 
+  Pressable, 
+  ScrollView, 
+  Alert, 
+  Modal, 
+  ActivityIndicator, 
+  TextInput, 
+  Platform, 
+  BackHandler 
+} from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigation } from '@react-navigation/native';
+import { router } from 'expo-router';
+
 
 import * as api from './api';
 import styles from './styles';
@@ -29,6 +43,8 @@ type FormularioEnvio = {
 };
 
 export default function CrearEnvio() {
+  const navigation = useNavigation();
+  
   // Wizard state
   const [paso, setPaso] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -69,6 +85,61 @@ export default function CrearEnvio() {
   const [showVariedadModal, setShowVariedadModal] = useState(false);
   const [variedadModalIndex, setVariedadModalIndex] = useState(0);
 
+  // Configurar el manejador del botón de retroceso
+  useEffect(() => {
+    const backAction = () => {
+      const hasChanges =
+        origenLabel || 
+        destinoLabel || 
+        form.fecha || 
+        form.horaRecogida ||
+        form.horaEntrega || 
+        form.tipoTransporteLabel ||
+        form.instruccionesEntrega || 
+        form.instruccionesRecogida ||
+        form.cargas.some(c => c.tipo || c.variedad || c.peso || c.cantidad);
+
+      if (hasChanges) {
+        Alert.alert(
+          '¿Salir sin guardar?',
+          'Tienes cambios sin guardar. ¿Seguro que deseas salir?',
+          [
+            {
+              text: 'Cancelar',
+              onPress: () => null,
+              style: 'cancel',
+            },
+            {
+              text: 'Sí, salir',
+              onPress: () => {
+                resetForm();
+                router.replace('../home');
+              },
+            },
+          ],
+          { cancelable: false }
+        );
+        return true;
+      } else {
+        resetForm();
+        router.replace('../home');
+        return true;
+      }
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction
+    );
+
+    return () => backHandler.remove();
+  }, [
+    form, 
+    origenLabel, 
+    destinoLabel, 
+    navigation
+  ]);
+
   // Fetch ubicaciones
   useEffect(() => {
     api.getUbicaciones()
@@ -100,59 +171,89 @@ export default function CrearEnvio() {
   const handleChange = (key: keyof FormularioEnvio, value: any) => {
     setForm(f => ({ ...f, [key]: value } as any));
   };
+  
   const updateCarga = (i: number, field: keyof Carga, value: any) => {
     const cargas = [...form.cargas];
     cargas[i] = { ...cargas[i], [field]: value };
     setForm(f => ({ ...f, cargas }));
   };
+  
   const agregarCarga = () => setForm(f => ({
     ...f,
     cargas: [...f.cargas, { tipo: '', variedad: '', empaquetado: '', cantidad: 0, peso: 0 }]
   }));
 
-  // Submit
+  const resetForm = () => {
+    setForm({
+      origen: { latitude: 0, longitude: 0 },
+      destino: { latitude: 0, longitude: 0 },
+      fecha: '',
+      horaRecogida: '',
+      horaEntrega: '',
+      instruccionesRecogida: '',
+      instruccionesEntrega: '',
+      cargas: [{ tipo: '', variedad: '', empaquetado: '', cantidad: 0, peso: 0 }],
+      tipoTransporteLabel: ''
+    });
+    setOrigenLabel('');
+    setDestinoLabel('');
+    setTipoTransporteId(null);
+    setPaso(0);
+    setRouteCoords([]);
+  };
+
   const crearEnvio = async () => {
     setLoading(true);
-    try {
-      await api.crearEnvio({
-        loc: {
-          nombreOrigen: origenLabel,
-          coordenadasOrigen: [form.origen.latitude, form.origen.longitude],
-          nombreDestino: destinoLabel,
-          coordenadasDestino: [form.destino.latitude, form.destino.longitude],
-          segmentos: []
+
+    if (
+      !origenLabel || !destinoLabel || !form.fecha ||
+      !form.horaRecogida || !form.horaEntrega || !tipoTransporteId
+    ) {
+      Alert.alert("Error", "Por favor completa todos los campos obligatorios.");
+      setLoading(false);
+      return;
+    }
+
+    const payload = {
+      loc: {
+        nombreOrigen: origenLabel,
+        coordenadasOrigen: [form.origen.latitude, form.origen.longitude],
+        nombreDestino: destinoLabel,
+        coordenadasDestino: [form.destino.latitude, form.destino.longitude],
+        segmentos: []
+      },
+      part: {
+        id_tipo_transporte: tipoTransporteId,
+        recogidaEntrega: {
+          fecha_recogida: form.fecha,
+          hora_recogida: form.horaRecogida,
+          hora_entrega: form.horaEntrega,
+          instrucciones_recogida: form.instruccionesRecogida,
+          instrucciones_entrega: form.instruccionesEntrega
         },
-        part: {
-          id_tipo_transporte: tipoTransporteId,
-          recogidaEntrega: {
-            fecha_recogida: form.fecha,
-            hora_recogida: form.horaRecogida,
-            hora_entrega: form.horaEntrega,
-            instrucciones_recogida: form.instruccionesRecogida,
-            instrucciones_entrega: form.instruccionesEntrega
-          },
-          cargas: form.cargas
-        }
-      });
+        cargas: form.cargas
+      }
+    };
+
+    console.log("Payload enviado a crearEnvio:", JSON.stringify(payload, null, 2));
+
+    try {
+      await api.crearEnvio(payload);
       Alert.alert('¡Éxito!', 'Envío creado correctamente');
-      // reset
-      setForm({ origen: { latitude: 0, longitude: 0 }, destino: { latitude: 0, longitude: 0 }, fecha: '', horaRecogida: '', horaEntrega: '', instruccionesRecogida: '', instruccionesEntrega: '', cargas: [{ tipo: '', variedad: '', empaquetado: '', cantidad: 0, peso: 0 }], tipoTransporteLabel: '' });
-      setOrigenLabel('');
-      setDestinoLabel('');
-      setTipoTransporteId(null);
-      setPaso(0);
+      resetForm();
+      router.replace('../home');
     } catch (e: unknown) {
+      console.error("Error al crear el envío:", e);
       const msg = e instanceof Error ? e.message : String(e);
       Alert.alert('Error', msg);
     } finally {
       setLoading(false);
     }
   };
-
   // Step components
   const PasoUbicacion = () => {
-    const origenes = Array.from(new Map(ubicaciones.map(u => [u.nombreOrigen, u])).values());
-    const destinosUnicos = Array.from(new Map(ubicaciones.map(u => [u.nombreDestino, u])).values());
+    const origenes = ubicaciones;
+    const destinosUnicos = ubicaciones;
     return (
     <View style={{ alignItems: 'center' }}>
       <Text style={styles.labelWhite}>Origen:</Text>
@@ -187,6 +288,12 @@ export default function CrearEnvio() {
                 onPress={() => {
                   handleChange('origen', { latitude: u.coordenadasOrigen[0], longitude: u.coordenadasOrigen[1] });
                   setOrigenLabel(u.nombreOrigen);
+
+                  const destinoCoincidente = ubicaciones.find(d => d.nombreDestino === u.nombreOrigen);
+                  if (destinoCoincidente) {
+                    handleChange('destino', { latitude: destinoCoincidente.coordenadasDestino[0], longitude: destinoCoincidente.coordenadasDestino[1] });
+                    setDestinoLabel(destinoCoincidente.nombreDestino);
+                  }
                   setShowOrigenModal(false);
                 }}>
                 <Text style={styles.modalOptionText}>{u.nombreOrigen}</Text>
@@ -443,15 +550,18 @@ export default function CrearEnvio() {
           </React.Fragment>
         ))}
       </View>
+      
       {/* Labels */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 16 }}>
         {pasosLabels.map((l, i) => (
           <Text key={i} style={[styles.labelStep, i <= paso && styles.labelActive]}>{l}</Text>
         ))}
       </View>
+
       <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: 16 }]}>
         {pasosComponents[paso]}
       </ScrollView>
+
       {/* Navigation */}
       <View style={styles.nav}>
         {paso > 0 && !loading && (
@@ -460,12 +570,14 @@ export default function CrearEnvio() {
             <Text style={styles.navText}>Atrás</Text>
           </Pressable>
         )}
+        
         {paso < pasosLabels.length - 1 && !loading && (
           <Pressable style={styles.navBtn} onPress={() => setPaso(paso + 1)}>
             <Text style={styles.navText}>Siguiente</Text>
             <Ionicons name="arrow-forward" size={20} color="#fff" />
           </Pressable>
         )}
+        
         {paso === pasosLabels.length - 1 && (
           <Pressable style={[styles.navBtn, styles.finishBtn]} onPress={crearEnvio} disabled={loading}>
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.navText}>Crear Envío</Text>}

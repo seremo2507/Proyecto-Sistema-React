@@ -26,20 +26,37 @@ export async function getRuta(origen: string, destino: string) {
 
 export async function crearEnvio(payload: any) {
   const headers = await authHeaders();
+
   const res = await fetch(`${API_BASE}/ubicaciones/`, {
-    method: 'POST', headers, body: JSON.stringify(payload.loc),
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload.loc),
   });
-  if (!res.ok) throw new Error('Error ubicacion');
+
+  if (!res.ok) {
+    const msg = await res.text();
+    throw new Error(`Error ubicacion: ${msg}`);
+  }
+
   const { _id: idUb } = await res.json();
 
   const evRes = await fetch(`${API_BASE}/envios/`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ id_ubicacion_mongo: idUb, particiones: [payload.part] }),
+    body: JSON.stringify({
+      id_ubicacion_mongo: idUb,
+      particiones: [payload.part],
+    }),
   });
-  if (!evRes.ok) throw new Error('Error envío');
+
+  if (!evRes.ok) {
+    const msg = await evRes.text();
+    throw new Error(`Error envío: ${msg}`);
+  }
+
   return evRes.json();
 }
+
 
 
 export default {
