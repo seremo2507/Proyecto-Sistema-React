@@ -301,11 +301,11 @@ export default function DetalleEnvioView() {
                 Estado: <Text style={{ color:'#28a745' }}>{envio.estado_envio}</Text>
               </Text>
               <View style={styles.separator}/>
-              <Text style={styles.item}>🚛 Transporte: {envio.tipo_transporte}</Text>
-              <Text style={styles.item}>🌱 Variedad: {envio.cargas?.[0]?.variedad}</Text>
-              <Text style={styles.item}>⚖️ Peso: {envio.cargas?.[0]?.peso ?? '—'} kg</Text>
-              <Text style={styles.item}>🔢 Cantidad: {envio.cargas?.[0]?.cantidad ?? '—'}</Text>
-              <Text style={styles.item}>📍 {envio.nombre_origen} → {envio.nombre_destino}</Text>
+              <Text style={styles.item}> Transporte: {envio.tipo_transporte}</Text>
+              <Text style={styles.item}> Variedad: {envio.cargas?.[0]?.variedad}</Text>
+              <Text style={styles.item}> Peso: {envio.cargas?.[0]?.peso ?? '—'} kg</Text>
+              <Text style={styles.item}> Cantidad: {envio.cargas?.[0]?.cantidad ?? '—'}</Text>
+              <Text style={styles.item}> {envio.nombre_origen} → {envio.nombre_destino}</Text>
 
               {/* ─── modal “Lista de condiciones registradas” ─── */}
               <Modal
@@ -454,7 +454,7 @@ export default function DetalleEnvioView() {
           </View>
         </View>
       </Modal>
-      
+
       {/* ─── modal “Envío finalizado” ─── */}
               <Modal
                 transparent
