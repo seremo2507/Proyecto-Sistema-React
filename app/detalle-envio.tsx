@@ -58,6 +58,7 @@ export default function DetalleEnvioView() {
   const [clienteFirmo,   setClienteFirmo]   = useState(false);
   const [stopPolling,    setStopPolling]    = useState<(() => void)|null>(null);
   const [showSignNeeded, setShowSignNeeded] = useState(false);
+  const [showFirmaBackendModal, setShowFirmaBackendModal] = useState(false);
 
   /* otros modals */
   const [showCondListModal, setShowCondListModal] = useState(false);
@@ -253,6 +254,7 @@ const startPollingFirma = () => {
   };
 
   const handleFinalize = async()=>{    
+    if (!clienteFirmo) { setShowSignNeeded(true); return; }
     if(!allAnswered(incidents)){ setErrorMsg('Responde Sí o No a todas las preguntas'); return; }
 
     try{
@@ -411,11 +413,16 @@ const startPollingFirma = () => {
                     </View>
                   ))}
 
-                  {!clienteFirmo && (
-                    <TouchableOpacity style={[styles.button,{backgroundColor:'#ffc107'}]} onPress={openQRModal}>
-                      <Text style={styles.btnText}>Mostrar QR para firma</Text>
-                    </TouchableOpacity>
-                  )}
+                  {/* siempre visible */}
+                  <TouchableOpacity
+                    style={[styles.button, { backgroundColor: '#ffc107' }]}
+                    onPress={handleShowQR}
+                  >
+                    <Text style={styles.btnText}>
+                      {clienteFirmo ? 'Mostrar QR nuevamente' : 'Mostrar QR para firma'}
+                    </Text>
+                  </TouchableOpacity>
+
 
                   <TouchableOpacity
                     style={[styles.button,{opacity:clienteFirmo?1:0.5}]}
@@ -486,6 +493,36 @@ const startPollingFirma = () => {
           </View>
         </View>
       </Modal>
+      {/* firma faltante detectada por el backend */}
+<Modal
+  transparent
+  visible={showFirmaBackendModal}
+  animationType="fade"
+  onRequestClose={() => setShowFirmaBackendModal(false)}
+>
+  <View style={styles.alertOverlay}>
+    <View style={styles.alertBox}>
+      <Ionicons
+        name="alert-circle-outline"
+        size={64}
+        color="#dc3545"
+        style={{ marginBottom: 12 }}
+      />
+      <Text style={styles.alertTitleGreen}>Debes capturar la firma</Text>
+      <Text style={styles.alertMsg}>
+        El servidor rechazó la operación porque la firma del cliente aún no ha sido registrada.
+        Pide al cliente que escanee el QR y firme para poder finalizar el envío.
+      </Text>
+      <TouchableOpacity
+        style={[styles.alertBtn, { marginTop: 8 }]}
+        onPress={() => setShowFirmaBackendModal(false)}
+      >
+        <Text style={styles.alertBtnText}>Entendido</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+</Modal>
+
 
       {/* envío finalizado */}
       <Modal transparent visible={showFinishModal} animationType="fade" onRequestClose={()=>setShowFinishModal(false)}>
