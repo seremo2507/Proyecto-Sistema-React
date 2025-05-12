@@ -253,35 +253,75 @@ const startPollingFirma = () => {
     }catch(err:any){ setErrorMsg(err.message); }
   };
 
-  const handleFinalize = async()=>{    
-    if (!clienteFirmo) { setShowSignNeeded(true); return; }
-    if(!allAnswered(incidents)){ setErrorMsg('Responde Sí o No a todas las preguntas'); return; }
+  const handleFinalize = async () => {
+  /* ─── validaciones previas ─── */
+  if (!clienteFirmo) {
+    setShowSignNeeded(true);          // aún no se escaneó el QR
+    return;
+  }
+  if (!allAnswered(incidents)) {
+    setErrorMsg('Responde Sí o No a todas las preguntas');
+    return;
+  }
 
-    try{
-      const token = await AsyncStorage.getItem('token');
-      const clean = Object.fromEntries(Object.entries(incidents).map(([k,v])=>[k,!!v]));
+  try {
+    const token = await AsyncStorage.getItem('token');
 
-      const resInc = await fetch(
-        `https://api-4g7v.onrender.com/api/envios/${id_asignacion}/checklist-incidentes`,
-        {method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},
-         body:JSON.stringify({...clean,descripcion_incidente:descripcionIncidente})});
-      await logFetch('checklist-inc',resInc);
-      if(!resInc.ok) throw new Error('Error checklist incidentes');
+    /* 1️⃣  Checklist de incidentes */
+    const cleanInc = Object.fromEntries(
+      Object.entries(incidents).map(([k, v]) => [k, !!v])
+    );
 
-      const resFin = await fetch(
-        `https://api-4g7v.onrender.com/api/envios/finalizar/${id_asignacion}`,
-        {method:'PUT',headers:{Authorization:`Bearer ${token}`}}
-      );
-      await logFetch('finalizar',resFin);
-      if(!resFin.ok) throw new Error('Error finalizar');
+    const resInc = await fetch(
+      `https://api-4g7v.onrender.com/api/envios/${id_asignacion}/checklist-incidentes`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ...cleanInc,
+          descripcion_incidente: descripcionIncidente,
+        }),
+      }
+    );
+    await logFetch('checklist-inc', resInc);
+    if (!resInc.ok) throw new Error('Error checklist incidentes');
 
-      setShowFinishModal(true);
-      fetchDetail();
-      setModalVisible(false);
-      setShowIncidents(false);
-      setClienteFirmo(false);
-    }catch(err:any){ setErrorMsg(err.message); }
-  };
+    /* 2️⃣  Finalizar envío */
+    const resFin = await fetch(
+      `https://api-4g7v.onrender.com/api/envios/finalizar/${id_asignacion}`,
+      {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+    const bodyFin = await resFin.json().catch(() => ({}));   // por si no es JSON
+    await logFetch('finalizar', resFin);
+
+    /*  ── firma faltante detectada por el backend ── */
+    if (!resFin.ok) {
+      if (
+        resFin.status === 400 &&
+        (bodyFin.error || '').toLowerCase().includes('firma del cliente')
+      ) {
+        setShowFirmaBackendModal(true);   // abre el modal informativo
+        return;                           // salimos sin seguir
+      }
+      throw new Error(bodyFin.error || 'Error al finalizar');
+    }
+
+    /* 3️⃣  éxito */
+    setShowFinishModal(true);    // modal “¡Envío finalizado!”
+    fetchDetail();               // refresca datos en pantalla
+    setModalVisible(false);
+    setShowIncidents(false);
+    setClienteFirmo(false);      // reinicia el flag para otros envíos
+  } catch (err: any) {
+    setErrorMsg(err.message || 'No se pudo finalizar');
+  }
+};
 
   /* ---------- render ---------- */
   if(!region||!envio){ return <View style={styles.loading}><Text style={{color:'#fff'}}>Cargando…</Text></View>; }
