@@ -286,7 +286,7 @@ export default function DetalleEnvioView() {
                 <View style={styles.alertBox}>
                   <Ionicons name="alert-circle-outline" size={64} color="#28a745" style={{ marginBottom:12 }}/>
                   <Text style={styles.alertTitleGreen}>¡Atención!</Text>
-                  <Text style={styles.alertMsg}>Completa el checklist de condiciones para iniciar el viaje.</Text>
+                  <Text style={styles.alertMsg}>Completar la Lista de condiciones para iniciar el viaje.</Text>
                   <TouchableOpacity style={styles.alertBtn} onPress={() => setShowChecklistAlert(false)}>
                     <Text style={styles.alertBtnText}>Entendido</Text>
                   </TouchableOpacity>
@@ -351,7 +351,7 @@ export default function DetalleEnvioView() {
                 ) : (
                   <>
                     <View style={styles.sectionHeader}>
-                      <Text style={styles.sectionTitle}>Checklist de condiciones</Text>
+                      <Text style={styles.sectionTitle}>Lista de condiciones</Text>
                     </View>
 
                     <TextInput
