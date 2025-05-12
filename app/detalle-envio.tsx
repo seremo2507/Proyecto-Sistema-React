@@ -47,6 +47,7 @@ export default function DetalleEnvioView() {
   const [showChecklistAlert,  setShowChecklistAlert]  = useState(false);
   const [showCondListModal,   setShowCondListModal]   = useState(false);
   const [showFinishModal,     setShowFinishModal]     = useState(false);
+  const [asignacionFinalizada, setAsignacionFinalizada] = useState(false);
 
   /* toasts */
   const [infoMsg,    setInfoMsg]    = useState('');
@@ -90,6 +91,12 @@ export default function DetalleEnvioView() {
       const found = data.find((e: any) => e.id_asignacion?.toString() === id_asignacion);
       if (!found) throw new Error('No se encontró el envío');
       setEnvio(found);
+
+      /* ── averiguamos el estado de la partición específica ── */
+      const miParticion = found.particiones?.find(
+        (p: any) => p.id_asignacion?.toString() === id_asignacion
+      );
+      setAsignacionFinalizada(miParticion?.estado?.toLowerCase() === 'entregado');
 
       /* mapa */
       if (found.coordenadas_origen && found.coordenadas_destino) {
@@ -185,6 +192,7 @@ export default function DetalleEnvioView() {
       await logFetch('finalizar-envio', resFin);
       if (!resFin.ok) throw new Error('Error finalizar envío');
 
+      setAsignacionFinalizada(true);
       setShowFinishModal(true);
       fetchDetail();
       setModalVisible(false);
@@ -328,7 +336,7 @@ export default function DetalleEnvioView() {
               </Modal>
 
               {/* ─── SECCIÓN ASIGNADO ─── */}
-              {envio.estado_envio.toLowerCase() === 'asignado' && (
+              {!asignacionFinalizada && ['asignado', 'parcialmente entregado'].includes(envio.estado_envio.toLowerCase()) && (
                 !showConditions ? (
                   <TouchableOpacity
                     style={styles.button}
@@ -383,7 +391,7 @@ export default function DetalleEnvioView() {
               )}
 
               {/* ─── SECCIÓN EN CURSO ─── */}
-              {envio.estado_envio.toLowerCase() === 'en curso' && (
+              {!asignacionFinalizada && envio.estado_envio.toLowerCase() === 'en curso' && (
                 !showIncidents ? (
                   <TouchableOpacity
                     style={styles.button}
@@ -450,6 +458,16 @@ export default function DetalleEnvioView() {
                   <Text style={styles.completedText}>¡Entrega completada con éxito!</Text>
                 </View>
               )}
+
+              {asignacionFinalizada && (
+                <View style={styles.completedContainer}>
+                  <Ionicons name="checkmark-circle" size={64} color="#28a745" />
+                  <Text style={styles.completedText}>
+                    Esta asignación ya fue finalizada.
+                  </Text>
+                </View>
+              )}
+
             </ScrollView>
           </View>
         </View>
