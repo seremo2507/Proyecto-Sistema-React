@@ -13,13 +13,12 @@ import {
   Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView, AnimatePresence } from 'moti';
 import { Easing } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 
-export default function LoginScreen() {
+export default function Login() {
   const router = useRouter();
   const { width } = Dimensions.get('window');
 
@@ -94,7 +93,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <LinearGradient colors={['#0140CD', '#0140CD']} style={styles.container}>
+    <View style={styles.container}>
       <MotiView
         key={reloadKey}
         from={{ opacity: 0, translateX: width }}
@@ -122,7 +121,9 @@ export default function LoginScreen() {
             }}
             style={styles.logoContainer}
           >
-            <Image source={require('../assets/logo.png')} style={styles.logo} />
+            <View style={styles.logoCircle}>
+              <Image source={require('../assets/logo.png')} style={styles.logo} />
+            </View>
           </MotiView>
 
           {/* Title */}
@@ -154,11 +155,11 @@ export default function LoginScreen() {
             <Feather
               name="mail"
               size={20}
-              color={focused === 'email' ? '#fff' : '#ccc'}
+              color={focused === 'email' ? '#0140CD' : '#999'}
             />
             <TextInput
               placeholder="Correo electrónico"
-              placeholderTextColor="#aaa"
+              placeholderTextColor="#999"
               style={[
                 styles.input,
                 focused === 'email' && styles.inputFocus,
@@ -192,11 +193,11 @@ export default function LoginScreen() {
             <Feather
               name="lock"
               size={20}
-              color={focused === 'password' ? '#fff' : '#ccc'}
+              color={focused === 'password' ? '#0140CD' : '#999'}
             />
             <TextInput
               placeholder="Contraseña"
-              placeholderTextColor="#aaa"
+              placeholderTextColor="#999"
               secureTextEntry
               style={[
                 styles.input,
@@ -229,7 +230,7 @@ export default function LoginScreen() {
           >
             <Pressable onPress={handleLogin} disabled={loading} style={styles.button}>
               {loading ? (
-                <ActivityIndicator color="#0140CD" />
+                <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.buttonText}>Iniciar sesión</Text>
               )}
@@ -278,24 +279,35 @@ export default function LoginScreen() {
           </MotiView>
         )}
       </AnimatePresence>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0140CD' },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#fff' 
+  },
   formWrapper: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 120,        // mueve el formulario un poco hacia abajo
+    paddingTop: 120,
     justifyContent: 'center',
   },
   inner: { flex: 1, gap: 16 },
   logoContainer: { alignItems: 'center', marginBottom: 16 },
-  logo: { width: 120, height: 120 },
+  logoCircle: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: '#0140CD',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logo: { width: 100, height: 100 },
   title: {
     fontSize: 28,
-    color: '#fff',
+    color: '#0140CD',
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: 16,
@@ -303,28 +315,54 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: '#f5f5f5',
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 48,
     marginBottom: 4,
+    borderWidth: 1,
+    borderColor: '#eee',
   },
-  input: { flex: 1, color: '#fff', marginLeft: 8 },
-  inputFocus: { borderColor: '#fff', borderWidth: 1 },
-  inputError: { borderColor: '#ff6b6b', borderWidth: 1 },
-  errorText: { color: '#ff6b6b', marginLeft: 8, marginBottom: 8 },
+  input: { 
+    flex: 1, 
+    color: '#333', 
+    marginLeft: 8 
+  },
+  inputFocus: { 
+    borderColor: '#0140CD', 
+    borderWidth: 1 
+  },
+  inputError: { 
+    borderColor: '#ff6b6b', 
+    borderWidth: 1 
+  },
+  errorText: { 
+    color: '#ff6b6b', 
+    marginLeft: 8, 
+    marginBottom: 8 
+  },
   buttonWrapper: { marginTop: 12 },
   button: {
-    backgroundColor: '#fff',
+    backgroundColor: '#0140CD',
     borderWidth: 2,
     borderColor: '#0140CD',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
   },
-  buttonText: { color: '#0140CD', fontSize: 16, fontWeight: '600' },
-  registerLink: { marginTop: 16, alignItems: 'center' },
-  registerText: { color: '#fff', textDecorationLine: 'underline' },
+  buttonText: { 
+    color: '#fff', 
+    fontSize: 16, 
+    fontWeight: '600' 
+  },
+  registerLink: { 
+    marginTop: 16, 
+    alignItems: 'center' 
+  },
+  registerText: { 
+    color: '#0140CD', 
+    textDecorationLine: 'underline' 
+  },
   toast: {
     position: 'absolute',
     bottom: 32,
@@ -335,5 +373,9 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
   },
-  toastText: { marginLeft: 8, fontSize: 14, fontWeight: '500' },
+  toastText: { 
+    marginLeft: 8, 
+    fontSize: 14, 
+    fontWeight: '500' 
+  },
 });
