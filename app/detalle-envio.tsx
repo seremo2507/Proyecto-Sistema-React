@@ -16,7 +16,7 @@ import {
   BackHandler,
   Alert,
   Image,
-  ActivityIndicator,     // ← nuevo
+  ActivityIndicator,
 } from 'react-native';
 import MapView, { Marker, Polyline, Region } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -63,6 +63,7 @@ export default function DetalleEnvioView() {
   /* otros modals */
   const [showCondListModal, setShowCondListModal] = useState(false);
   const [showFinishModal,   setShowFinishModal]   = useState(false);
+  const [showIncidentStartModal, setShowIncidentStartModal] = useState(false);
 
   /* toasts */
   const [infoMsg,  setInfoMsg]  = useState('');
@@ -151,7 +152,7 @@ export default function DetalleEnvioView() {
       if (!res.ok) throw new Error(json?.mensaje || 'Error QR');
 
       setQrImg(json.imagenQR);   // ← mostramos código
-      setClienteFirmo(true);     // ← ✅ habilita “Finalizar envío”
+      setClienteFirmo(true);     // ← ✅ habilita "Finalizar envío"
     } catch (err: any) {
       setErrorMsg(err.message || 'No se pudo obtener el QR');
       setShowQRModal(false);
@@ -181,7 +182,7 @@ const startPollingFirma = () => {
           setInfoMsg('Firma verificada ✔');
         }
       }
-      // por si acaso cortamos a los ~3 min
+      // por si acaso cortamos a los ~3 min
       if (++attempts > 60) clearInterval(intervalo);
     } catch {/* ignora fallos transitorios */}
   }, 3000);
@@ -266,8 +267,9 @@ const startPollingFirma = () => {
 
   try {
     const token = await AsyncStorage.getItem('token');
+    let checklistRegistrado = false;
 
-    /* 1️⃣  Checklist de incidentes */
+    /* 1️⃣  Checklist de incidentes (solo si no está registrado aún) */
     const cleanInc = Object.fromEntries(
       Object.entries(incidents).map(([k, v]) => [k, !!v])
     );
@@ -287,7 +289,20 @@ const startPollingFirma = () => {
       }
     );
     await logFetch('checklist-inc', resInc);
-    if (!resInc.ok) throw new Error('Error checklist incidentes');
+    
+    // Si obtenemos error, verificamos si es porque ya está registrado
+    if (!resInc.ok) {
+      const incBody = await resInc.json().catch(() => ({}));
+      
+      // Si ya está registrado, continuamos sin problema
+      if (resInc.status === 400 && (incBody.error || '').includes('ya fue registrado')) {
+        console.log('Checklist ya registrado, continuando con finalización');
+        checklistRegistrado = true;
+      } else {
+        // Si es otro tipo de error, lo lanzamos
+        throw new Error(incBody.error || 'Error checklist incidentes');
+      }
+    }
 
     /* 2️⃣  Finalizar envío */
     const resFin = await fetch(
@@ -313,7 +328,7 @@ const startPollingFirma = () => {
     }
 
     /* 3️⃣  éxito */
-    setShowFinishModal(true);    // modal “¡Envío finalizado!”
+    setShowFinishModal(true);    // modal "¡Envío finalizado!"
     fetchDetail();               // refresca datos en pantalla
     setModalVisible(false);
     setShowIncidents(false);
@@ -324,7 +339,7 @@ const startPollingFirma = () => {
 };
 
   /* ---------- render ---------- */
-  if(!region||!envio){ return <View style={styles.loading}><Text style={{color:'#fff'}}>Cargando…</Text></View>; }
+  if(!region||!envio){ return <View style={styles.loading}><Text style={{color:'#333'}}>Cargando…</Text></View>; }
 
   return (
     <View style={{flex:1}}>
@@ -405,13 +420,13 @@ const startPollingFirma = () => {
                     <View key={k} style={styles.row}>
                       <Text style={styles.label}>{k.replace(/_/g,' ')}</Text>
                       <View style={styles.yesNoGroup}>
-                        <Pressable style={[styles.yesNoBtn,v===true&&styles.yesNoActive]}
+                        <Pressable style={{...styles.yesNoBtn, ...(v===true ? styles.yesNoActive : {})}}
                           onPress={()=>setAnswer(setConditions,k,true)}>
-                          <Text style={[styles.yesNoText,v===true&&styles.yesNoTextActive]}>Sí</Text>
+                          <Text style={{...styles.yesNoText, ...(v===true ? styles.yesNoTextActive : {})}}>Sí</Text>
                         </Pressable>
-                        <Pressable style={[styles.yesNoBtn,v===false&&styles.yesNoActive]}
+                        <Pressable style={{...styles.yesNoBtn, ...(v===false ? styles.yesNoActive : {})}}
                           onPress={()=>setAnswer(setConditions,k,false)}>
-                          <Text style={[styles.yesNoText,v===false&&styles.yesNoTextActive]}>No</Text>
+                          <Text style={{...styles.yesNoText, ...(v===false ? styles.yesNoTextActive : {})}}>No</Text>
                         </Pressable>
                       </View>
                     </View>
@@ -425,7 +440,9 @@ const startPollingFirma = () => {
               {/* ---------- CHECKLIST INCIDENTES ---------- */}
               {(envio.estado_envio.toLowerCase()==='en curso' || envio.estado_envio.toLowerCase()==='parcialmente entregado') &&
                !showIncidents && (
-                <TouchableOpacity style={styles.button} onPress={()=>{setShowIncidents(true);setInfoMsg('Completa el checklist de incidentes');}}>
+                <TouchableOpacity style={styles.button} onPress={()=>{
+                  setShowIncidentStartModal(true);
+                }}>
                   <Text style={styles.btnText}>Iniciar finalización</Text>
                 </TouchableOpacity>
               )}
@@ -441,13 +458,13 @@ const startPollingFirma = () => {
                     <View key={k} style={styles.row}>
                       <Text style={styles.label}>{k.replace(/_/g,' ')}</Text>
                       <View style={styles.yesNoGroup}>
-                        <Pressable style={[styles.yesNoBtn,v===true&&styles.yesNoActive]}
+                        <Pressable style={{...styles.yesNoBtn, ...(v===true ? styles.yesNoActive : {})}}
                           onPress={()=>setAnswer(setIncidents,k,true)}>
-                          <Text style={[styles.yesNoText,v===true&&styles.yesNoTextActive]}>Sí</Text>
+                          <Text style={{...styles.yesNoText, ...(v===true ? styles.yesNoTextActive : {})}}>Sí</Text>
                         </Pressable>
-                        <Pressable style={[styles.yesNoBtn,v===false&&styles.yesNoActive]}
+                        <Pressable style={{...styles.yesNoBtn, ...(v===false ? styles.yesNoActive : {})}}
                           onPress={()=>setAnswer(setIncidents,k,false)}>
-                          <Text style={[styles.yesNoText,v===false&&styles.yesNoTextActive]}>No</Text>
+                          <Text style={{...styles.yesNoText, ...(v===false ? styles.yesNoTextActive : {})}}>No</Text>
                         </Pressable>
                       </View>
                     </View>
@@ -455,7 +472,7 @@ const startPollingFirma = () => {
 
                   {/* siempre visible */}
                   <TouchableOpacity
-                    style={[styles.button, { backgroundColor: '#ffc107' }]}
+                    style={{...styles.button, backgroundColor: '#ffc107'}}
                     onPress={handleShowQR}
                   >
                     <Text style={styles.btnText}>
@@ -465,7 +482,7 @@ const startPollingFirma = () => {
 
 
                   <TouchableOpacity
-                    style={[styles.button,{opacity:clienteFirmo?1:0.5}]}
+                    style={{...styles.button, opacity: clienteFirmo ? 1 : 0.5}}
                     disabled={!clienteFirmo}
                     onPress={handleFinalize}
                   >
@@ -521,6 +538,36 @@ const startPollingFirma = () => {
         </View>
       </Modal>
 
+      {/* Modal inicio de checklist de incidentes */}
+      <Modal transparent visible={showIncidentStartModal} animationType="fade" onRequestClose={()=>setShowIncidentStartModal(false)}>
+        <View style={styles.alertOverlay}>
+          <View style={styles.alertBox}>
+            <Ionicons name="list-circle-outline" size={64} color="#0140CD" style={{marginBottom:12}}/>
+            <Text style={{...styles.alertTitleGreen, color: '#0140CD'}}>Checklist de Incidentes</Text>
+            <Text style={styles.alertMsg}>
+              Debes completar el checklist de incidentes antes de finalizar este envío.
+              Por favor, responde a todas las preguntas y describe cualquier incidencia ocurrida durante el trayecto.
+            </Text>
+            <View style={styles.modalButtonsRow}>
+              <TouchableOpacity 
+                style={{...styles.alertBtn, backgroundColor: '#6c757d', marginRight: 8}} 
+                onPress={()=>setShowIncidentStartModal(false)}>
+                <Text style={styles.alertBtnText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.alertBtn} 
+                onPress={()=>{
+                  setShowIncidentStartModal(false);
+                  setShowIncidents(true);
+                  setInfoMsg('Completa el checklist de incidentes');
+                }}>
+                <Text style={styles.alertBtnText}>Continuar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* lista condiciones */}
       <Modal transparent visible={showCondListModal} animationType="fade" onRequestClose={()=>setShowCondListModal(false)}>
         <View style={styles.alertOverlay}>
@@ -533,36 +580,65 @@ const startPollingFirma = () => {
           </View>
         </View>
       </Modal>
-      {/* firma faltante detectada por el backend */}
-<Modal
-  transparent
-  visible={showFirmaBackendModal}
-  animationType="fade"
-  onRequestClose={() => setShowFirmaBackendModal(false)}
->
-  <View style={styles.alertOverlay}>
-    <View style={styles.alertBox}>
-      <Ionicons
-        name="alert-circle-outline"
-        size={64}
-        color="#dc3545"
-        style={{ marginBottom: 12 }}
-      />
-      <Text style={styles.alertTitleGreen}>Debes capturar la firma</Text>
-      <Text style={styles.alertMsg}>
-        El servidor rechazó la operación porque la firma del cliente aún no ha sido registrada.
-        Pide al cliente que escanee el QR y firme para poder finalizar el envío.
-      </Text>
-      <TouchableOpacity
-        style={[styles.alertBtn, { marginTop: 8 }]}
-        onPress={() => setShowFirmaBackendModal(false)}
-      >
-        <Text style={styles.alertBtnText}>Entendido</Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-</Modal>
 
+      {/* firma faltante detectada por el backend */}
+      <Modal
+        transparent
+        visible={showFirmaBackendModal}
+        animationType="fade"
+        onRequestClose={() => setShowFirmaBackendModal(false)}
+      >
+        <View style={styles.alertOverlay}>
+          <View style={styles.alertBox}>
+            <Ionicons
+              name="alert-circle-outline"
+              size={64}
+              color="#dc3545"
+              style={{ marginBottom: 12 }}
+            />
+            <Text style={styles.alertTitleGreen}>Debes capturar la firma</Text>
+            <Text style={styles.alertMsg}>
+              El servidor rechazó la operación porque la firma del cliente aún no ha sido registrada.
+              Pide al cliente que escanee el QR y firme para poder finalizar el envío.
+            </Text>
+            <TouchableOpacity
+              style={{...styles.alertBtn, marginTop: 8}}
+              onPress={() => setShowFirmaBackendModal(false)}
+            >
+              <Text style={styles.alertBtnText}>Entendido</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal firma cliente requerida */}
+      <Modal transparent visible={showSignNeeded} animationType="fade" onRequestClose={()=>setShowSignNeeded(false)}>
+        <View style={styles.alertOverlay}>
+          <View style={styles.alertBox}>
+            <Ionicons name="finger-print-outline" size={64} color="#dc3545" style={{marginBottom:12}}/>
+            <Text style={{...styles.alertTitleGreen, color: '#dc3545'}}>Falta la firma del cliente</Text>
+            <Text style={styles.alertMsg}>
+              Para finalizar este envío, es necesario obtener la firma del cliente.
+              Por favor, utiliza la opción "Mostrar QR para firma" y solicita al cliente que escanee y firme.
+            </Text>
+            <View style={styles.modalButtonsRow}>
+              <TouchableOpacity 
+                style={{...styles.alertBtn, backgroundColor: '#6c757d', marginRight: 8}} 
+                onPress={()=>setShowSignNeeded(false)}>
+                <Text style={styles.alertBtnText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.alertBtn} 
+                onPress={()=>{
+                  setShowSignNeeded(false);
+                  handleShowQR();
+                }}>
+                <Text style={styles.alertBtnText}>Mostrar QR</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* envío finalizado */}
       <Modal transparent visible={showFinishModal} animationType="fade" onRequestClose={()=>setShowFinishModal(false)}>
@@ -571,7 +647,7 @@ const startPollingFirma = () => {
             <Ionicons name="checkmark-circle-outline" size={64} color="#28a745" style={{marginBottom:12}}/>
             <Text style={styles.alertTitleGreen}>¡Envío Finalizado!</Text>
             <Text style={styles.alertMsg}>La entrega se registró con éxito.</Text>
-            <TouchableOpacity style={[styles.alertBtn,{marginTop:8}]} onPress={()=>setShowFinishModal(false)}>
+            <TouchableOpacity style={{...styles.alertBtn, marginTop: 8}} onPress={()=>setShowFinishModal(false)}>
               <Text style={styles.alertBtnText}>Cerrar</Text>
             </TouchableOpacity>
           </View>
@@ -583,7 +659,7 @@ const startPollingFirma = () => {
 
 /* ---------- estilos ---------- */
 const styles = StyleSheet.create({
-  loading:{flex:1,justifyContent:'center',alignItems:'center',backgroundColor:'#0f2027'},
+  loading:{flex:1,justifyContent:'center',alignItems:'center',backgroundColor:'#fff'},
 
   miniInfoBar:{position:'absolute',bottom:20,left:20,right:20,backgroundColor:'rgba(1,64,205,0.95)',
     borderRadius:10,padding:12,flexDirection:'row',justifyContent:'space-between',alignItems:'center',elevation:6},
@@ -599,6 +675,7 @@ const styles = StyleSheet.create({
   alertMsg:{fontSize:16,color:'#333',textAlign:'center',marginBottom:20},
   alertBtn:{backgroundColor:'#0140CD',paddingVertical:12,paddingHorizontal:24,borderRadius:12},
   alertBtnText:{color:'#fff',fontWeight:'600',fontSize:16},
+  modalButtonsRow: {flexDirection: 'row', justifyContent: 'center'},
 
   modalContainer:{flex:1,justifyContent:'flex-end',backgroundColor:'rgba(0,0,0,0.4)'},
   modalContent:{backgroundColor:'#fff',borderTopLeftRadius:20,borderTopRightRadius:20,maxHeight:'90%'},

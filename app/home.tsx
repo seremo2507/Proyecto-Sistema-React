@@ -123,11 +123,11 @@ export default function HomeScreen() {
   );
 
   return (
-    <LinearGradient colors={['#0140CD', '#0140CD']} style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.dispatch(DrawerActions.openDrawer())}>
-          <Ionicons name="menu" size={28} color="#fff" />
+          <Ionicons name="menu" size={28} color="#0140CD" />
         </TouchableOpacity>
         <View style={styles.greeting}>
           <Text style={styles.greetingText}>Hola,</Text>
@@ -147,7 +147,7 @@ export default function HomeScreen() {
       ) : usuario.rol === 'transportista' && (
         loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#fff" />
+            <ActivityIndicator size="large" color="#0140CD" />
           </View>
         ) : envios.length === 0 ? (
           <View style={styles.loadingContainer}>
@@ -163,27 +163,27 @@ export default function HomeScreen() {
           />
         )
       )}
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: '#fff' },
   header: { flexDirection: 'row', alignItems: 'center', paddingTop: 48, paddingHorizontal: 16, paddingBottom: 16 },
   greeting: { flex: 1, marginLeft: 12 },
-  greetingText: { color: '#ccc', fontSize: 16 },
-  greetingName: { color: '#fff', fontSize: 22, fontWeight: '700' },
-  avatar: { width: 40, height: 40, borderRadius: 20 },
+  greetingText: { color: '#999', fontSize: 16 },
+  greetingName: { color: '#333', fontSize: 22, fontWeight: '700' },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#0140CD', padding: 5 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  noData: { color: '#eee', fontSize: 16 },
-  card: { backgroundColor: 'rgba(255,255,255,0.1)', marginHorizontal: 16, borderRadius: 12, padding: 16, shadowColor: '#000', shadowOpacity: 0.2, shadowOffset: { width: 0, height: 4 }, shadowRadius: 8, elevation: 4 },
+  noData: { color: '#666', fontSize: 16 },
+  card: { backgroundColor: '#fff', marginHorizontal: 16, borderRadius: 12, padding: 16, borderLeftWidth: 4, shadowColor: '#000', shadowOpacity: 0.1, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 3 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  cardTitle: { color: '#fff', fontSize: 18, fontWeight: '600', marginLeft: 8 },
-  cardSub: { color: '#ccc', fontSize: 14, marginBottom: 12 },
+  cardTitle: { color: '#333', fontSize: 18, fontWeight: '600', marginLeft: 8 },
+  cardSub: { color: '#777', fontSize: 14, marginBottom: 12 },
   estadoBadge: { alignSelf: 'flex-start', borderRadius: 12, overflow: 'hidden' },
   estadoText: { color: '#fff', paddingVertical: 4, paddingHorizontal: 12, fontSize: 12 },
   adminContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16 },
-  subtitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
-  adminButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderWidth: 2, borderColor: '#0140CD', paddingVertical: 14, paddingHorizontal: 24, borderRadius: 12, shadowColor: '#000', shadowOpacity: 0.2, shadowOffset: { width: 0, height: 6 }, shadowRadius: 10, elevation: 6 },
+  subtitle: { color: '#333', fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
+  adminButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderWidth: 2, borderColor: '#0140CD', paddingVertical: 14, paddingHorizontal: 24, borderRadius: 12, shadowColor: '#000', shadowOpacity: 0.1, shadowOffset: { width: 0, height: 4 }, shadowRadius: 6, elevation: 4 },
   adminButtonText: { color: '#0140CD', fontSize: 16, fontWeight: '600' },
 });
