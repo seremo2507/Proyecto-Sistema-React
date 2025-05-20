@@ -3,13 +3,13 @@ import { useRouter } from 'expo-router';
 import {
   View,
   Text,
-  StyleSheet,
   Pressable,
   Image,
   Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView, MotiText } from 'moti';
+import tw from 'twrnc';
 
 export default function WelcomeScreen() {
   const router = useRouter();
@@ -130,7 +130,7 @@ export default function WelcomeScreen() {
   };
 
   return (
-    <LinearGradient colors={['#FFFFFF', '#FFFFFF']} style={styles.container}>
+    <LinearGradient colors={['#FFFFFF', '#FFFFFF']} style={tw`flex-1 bg-white`}>
       {/* Logo animado */}
       <MotiView
         from={{ translateY: height, translateX: (width - LOGO_SIZE) / 2 }}
@@ -140,15 +140,20 @@ export default function WelcomeScreen() {
         }}
         transition={{ type: 'timing', duration: 1000 }}
         style={[
-          styles.logoContainer,
+          tw`absolute justify-center items-center shadow-lg z-10`,
           {
             width: LOGO_SIZE,
             height: LOGO_SIZE,
             borderRadius: LOGO_SIZE / 2,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.2,
+            shadowRadius: 5,
+            elevation: 5,
           },
         ]}
       >
-        <View style={styles.blueCircle}>
+        <View style={tw`w-full h-full rounded-full bg-[#0140CD] justify-center items-center`}>
           <Image
             source={require('../assets/logo.png')}
             style={{ width: LOGO_SIZE * 0.7, height: LOGO_SIZE * 0.7 }}
@@ -168,9 +173,9 @@ export default function WelcomeScreen() {
             zIndex: 5, // Menor que el logo para que quede detrás
           }}
         >
-          <Text style={styles.orgaTrackText}>
+          <Text style={tw`text-3xl font-bold text-[#0140CD]`}>
             {renderText()}
-            <Text style={styles.cursorText}>|</Text>
+            <Text style={tw`text-3xl font-bold text-[#0140CD] opacity-70`}>|</Text>
           </Text>
         </View>
       )}
@@ -178,18 +183,18 @@ export default function WelcomeScreen() {
       {/* Contenido final (título, subtítulo y botón) */}
       {showFinalContent && (
         <View
-          style={{
-            position: 'absolute',
-            top: topY + LOGO_SIZE + 20,
-            width,
-            alignItems: 'center',
-          }}
+          style={[
+            tw`absolute w-full items-center`,
+            {
+              top: topY + LOGO_SIZE + 20,
+            }
+          ]}
         >
           <MotiText
             from={{ opacity: 0, translateY: 20 }}
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ type: 'timing', duration: 600 }}
-            style={styles.title}
+            style={tw`text-2xl text-[#0140CD] font-bold mb-2`}
           >
             Bienvenido a OrgaTrack
           </MotiText>
@@ -198,7 +203,7 @@ export default function WelcomeScreen() {
             from={{ opacity: 0, translateY: 20 }}
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ type: 'timing', duration: 600, delay: 600 }}
-            style={styles.subtitle}
+            style={tw`text-base text-gray-600 text-center mb-8 px-6`}
           >
             Optimiza tu logística en cada envío
           </MotiText>
@@ -212,13 +217,18 @@ export default function WelcomeScreen() {
               duration: 400, // Reducido de 800ms a 400ms
               delay: 900    // Reducido de 1200ms a 900ms
             }}
-            style={styles.buttonContainer}
+            style={tw`overflow-hidden`}
           >
             <Pressable
-              style={styles.button}
+              style={({ pressed }) => [
+                tw`bg-[#0140CD] py-3.5 px-12 rounded-3xl`,
+                {
+                  opacity: pressed ? 0.9 : 1,
+                }
+              ]}
               onPress={() => router.replace('/login')}
             >
-              <Text style={styles.buttonText}>Comenzar</Text>
+              <Text style={tw`text-white text-base font-semibold`}>Comenzar</Text>
             </Pressable>
           </MotiView>
         </View>
@@ -226,73 +236,3 @@ export default function WelcomeScreen() {
     </LinearGradient>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  logoContainer: {
-    position: 'absolute',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 5,
-    zIndex: 10, // Mayor valor para estar por encima del texto
-  },
-  blueCircle: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 1000,
-    backgroundColor: '#0140CD',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  orgaTrackText: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#0140CD',
-  },
-  cursorText: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#0140CD',
-    opacity: 0.7,
-  },
-  title: {
-    fontSize: 28,
-    color: '#0140CD',
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#555',
-    textAlign: 'center',
-    marginBottom: 32,
-    paddingHorizontal: 24,
-  },
-  buttonContainer: {
-    width: 'auto',
-    overflow: 'hidden', // Evita que cualquier animación se salga del contenedor
-  },
-  button: {
-    backgroundColor: '#0140CD',
-    paddingVertical: 14,
-    paddingHorizontal: 48,
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});

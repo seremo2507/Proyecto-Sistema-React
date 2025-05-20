@@ -1,6 +1,11 @@
-/** @type {import('tailwindcss').Config} */
+// tailwind.config.js
 module.exports = {
-  content: ["./app/**/*.{js,jsx,ts,tsx}"],
-  theme: { extend: {} },
-  plugins: [],
+  theme: {
+    extend: {
+      colors: {
+        // Puedes agregar tus colores personalizados aquí
+        // 'mi-azul': '#0140CD',
+      }
+    }
+  }
 }

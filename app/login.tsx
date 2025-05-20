@@ -5,18 +5,19 @@ import {
   Text,
   TextInput,
   Pressable,
-  StyleSheet,
   Dimensions,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   Image,
+  StatusBar,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MotiView, AnimatePresence } from 'moti';
 import { Easing } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
+import tw from 'twrnc'; // Importamos twrnc
 
 export default function Login() {
   const router = useRouter();
@@ -93,7 +94,9 @@ export default function Login() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={tw`flex-1 bg-white`}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      
       <MotiView
         key={reloadKey}
         from={{ opacity: 0, translateX: width }}
@@ -103,11 +106,11 @@ export default function Login() {
           duration: 500,
           easing: Easing.inOut(Easing.cubic),
         }}
-        style={styles.formWrapper}
+        style={tw`flex-1 px-6 pt-32 justify-center`}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.inner}
+          style={tw`flex-1`}
         >
           {/* Logo */}
           <MotiView
@@ -119,10 +122,10 @@ export default function Login() {
               stiffness: 100,
               delay: 100,
             }}
-            style={styles.logoContainer}
+            style={tw`items-center mb-6`}
           >
-            <View style={styles.logoCircle}>
-              <Image source={require('../assets/logo.png')} style={styles.logo} />
+            <View style={tw`w-36 h-36 rounded-full bg-[#0140CD] justify-center items-center`}>
+              <Image source={require('../assets/logo.png')} style={tw`w-24 h-24`} />
             </View>
           </MotiView>
 
@@ -137,7 +140,9 @@ export default function Login() {
               easing: Easing.out(Easing.exp),
             }}
           >
-            <Text style={styles.title}>¡Bienvenido!</Text>
+            <Text style={tw`text-2xl text-[#0140CD] font-bold text-center mb-6`}>
+              ¡Bienvenido!
+            </Text>
           </MotiView>
 
           {/* Email Input */}
@@ -150,7 +155,7 @@ export default function Login() {
               delay: 300,
               easing: Easing.out(Easing.exp),
             }}
-            style={styles.inputContainer}
+            style={tw`flex-row items-center bg-gray-100 rounded-xl px-3 h-12 mb-1 border border-gray-200`}
           >
             <Feather
               name="mail"
@@ -160,11 +165,7 @@ export default function Login() {
             <TextInput
               placeholder="Correo electrónico"
               placeholderTextColor="#999"
-              style={[
-                styles.input,
-                focused === 'email' && styles.inputFocus,
-                touched.email && !isEmailValid && styles.inputError,
-              ]}
+              style={tw`flex-1 text-gray-800 ml-2 ${focused === 'email' ? 'border border-[#0140CD]' : ''} ${touched.email && !isEmailValid ? 'border border-red-400' : ''}`}
               value={email}
               onChangeText={setEmail}
               onFocus={() => setFocused('email')}
@@ -175,7 +176,9 @@ export default function Login() {
             />
           </MotiView>
           {touched.email && !isEmailValid && (
-            <Text style={styles.errorText}>Correo inválido</Text>
+            <Text style={tw`text-red-500 ml-2 mb-2 text-xs`}>
+              Correo inválido
+            </Text>
           )}
 
           {/* Password Input */}
@@ -188,7 +191,7 @@ export default function Login() {
               delay: 400,
               easing: Easing.out(Easing.exp),
             }}
-            style={styles.inputContainer}
+            style={tw`flex-row items-center bg-gray-100 rounded-xl px-3 h-12 mb-1 mt-3 border border-gray-200`}
           >
             <Feather
               name="lock"
@@ -199,11 +202,7 @@ export default function Login() {
               placeholder="Contraseña"
               placeholderTextColor="#999"
               secureTextEntry
-              style={[
-                styles.input,
-                focused === 'password' && styles.inputFocus,
-                touched.password && !isPasswordValid && styles.inputError,
-              ]}
+              style={tw`flex-1 text-gray-800 ml-2 ${focused === 'password' ? 'border border-[#0140CD]' : ''} ${touched.password && !isPasswordValid ? 'border border-red-400' : ''}`}
               value={password}
               onChangeText={setPassword}
               onFocus={() => setFocused('password')}
@@ -212,7 +211,7 @@ export default function Login() {
             />
           </MotiView>
           {touched.password && !isPasswordValid && (
-            <Text style={styles.errorText}>
+            <Text style={tw`text-red-500 ml-2 mb-2 text-xs`}>
               La contraseña debe tener al menos 6 caracteres
             </Text>
           )}
@@ -226,20 +225,31 @@ export default function Login() {
               translateX: shake ? [-15, 15, -15, 15, 0] : 0,
             }}
             transition={{ type: 'timing', duration: 400 }}
-            style={styles.buttonWrapper}
+            style={tw`mt-6`}
           >
-            <Pressable onPress={handleLogin} disabled={loading} style={styles.button}>
+            <Pressable 
+              onPress={handleLogin} 
+              disabled={loading} 
+              style={({ pressed }) => tw`bg-[#0140CD] border-2 border-[#0140CD] py-3.5 rounded-xl items-center ${pressed ? 'opacity-90' : ''}`}
+            >
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.buttonText}>Iniciar sesión</Text>
+                <Text style={tw`text-white text-base font-semibold`}>
+                  Iniciar sesión
+                </Text>
               )}
             </Pressable>
           </MotiView>
 
           {/* Register Link */}
-          <Pressable onPress={() => router.push('/register')} style={styles.registerLink}>
-            <Text style={styles.registerText}>¿No tienes cuenta? Regístrate</Text>
+          <Pressable 
+            onPress={() => router.push('/register')} 
+            style={({ pressed }) => tw`mt-5 items-center ${pressed ? 'opacity-70' : ''}`}
+          >
+            <Text style={tw`text-[#0140CD] underline`}>
+              ¿No tienes cuenta? Regístrate
+            </Text>
           </Pressable>
         </KeyboardAvoidingView>
       </MotiView>
@@ -252,10 +262,10 @@ export default function Login() {
             animate={{ opacity: 1, translateY: 0 }}
             exit={{ opacity: 0, translateY: 80 }}
             transition={{ type: 'timing', duration: 300 }}
-            style={[styles.toast, { backgroundColor: '#d4edda' }]}
+            style={tw`absolute bottom-8 left-6 right-6 flex-row items-center p-3 rounded-xl bg-green-100`}
           >
             <Feather name="check-circle" size={20} color="#155724" />
-            <Text style={[styles.toastText, { color: '#155724' }]}>
+            <Text style={tw`ml-2 text-sm font-medium text-green-800`}>
               Inicio de sesión exitoso
             </Text>
           </MotiView>
@@ -270,10 +280,10 @@ export default function Login() {
             animate={{ opacity: 1, translateY: 0 }}
             exit={{ opacity: 0, translateY: 80 }}
             transition={{ type: 'timing', duration: 300 }}
-            style={[styles.toast, { backgroundColor: '#fdecea' }]}
+            style={tw`absolute bottom-8 left-6 right-6 flex-row items-center p-3 rounded-xl bg-red-100`}
           >
             <Feather name="x-circle" size={20} color="#dc3545" />
-            <Text style={[styles.toastText, { color: '#dc3545' }]}>
+            <Text style={tw`ml-2 text-sm font-medium text-red-700`}>
               {error}
             </Text>
           </MotiView>
@@ -282,100 +292,3 @@ export default function Login() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#fff' 
-  },
-  formWrapper: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 120,
-    justifyContent: 'center',
-  },
-  inner: { flex: 1, gap: 16 },
-  logoContainer: { alignItems: 'center', marginBottom: 16 },
-  logoCircle: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: '#0140CD',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logo: { width: 100, height: 100 },
-  title: {
-    fontSize: 28,
-    color: '#0140CD',
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 48,
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: '#eee',
-  },
-  input: { 
-    flex: 1, 
-    color: '#333', 
-    marginLeft: 8 
-  },
-  inputFocus: { 
-    borderColor: '#0140CD', 
-    borderWidth: 1 
-  },
-  inputError: { 
-    borderColor: '#ff6b6b', 
-    borderWidth: 1 
-  },
-  errorText: { 
-    color: '#ff6b6b', 
-    marginLeft: 8, 
-    marginBottom: 8 
-  },
-  buttonWrapper: { marginTop: 12 },
-  button: {
-    backgroundColor: '#0140CD',
-    borderWidth: 2,
-    borderColor: '#0140CD',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  buttonText: { 
-    color: '#fff', 
-    fontSize: 16, 
-    fontWeight: '600' 
-  },
-  registerLink: { 
-    marginTop: 16, 
-    alignItems: 'center' 
-  },
-  registerText: { 
-    color: '#0140CD', 
-    textDecorationLine: 'underline' 
-  },
-  toast: {
-    position: 'absolute',
-    bottom: 32,
-    left: 24,
-    right: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-  },
-  toastText: { 
-    marginLeft: 8, 
-    fontSize: 14, 
-    fontWeight: '500' 
-  },
-});
