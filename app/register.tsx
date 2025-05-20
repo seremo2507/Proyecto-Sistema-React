@@ -5,7 +5,6 @@ import {
   Text,
   TextInput,
   Pressable,
-  StyleSheet,
   Dimensions,
   KeyboardAvoidingView,
   Platform,
@@ -13,11 +12,11 @@ import {
   Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView, AnimatePresence } from 'moti';
 import { Easing } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
+import tw from 'twrnc';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -95,8 +94,27 @@ export default function RegisterScreen() {
     }
   };
 
+  // Obtener las clases de estilo para inputs basadas en el estado
+  const getInputStyles = (field: keyof typeof touched) => {
+    const baseStyles = tw`flex-1 text-gray-800 ml-2 text-base`;
+    if (focused === field) {
+      return [baseStyles, tw`border border-[#0140CD]`];
+    }
+    if (touched[field]) {
+      if (
+        (field === 'nombre' && nombre.trim() === '') ||
+        (field === 'apellido' && apellido.trim() === '') ||
+        (field === 'correo' && !isCorreoValid) ||
+        (field === 'contrasena' && !isPasswordValid)
+      ) {
+        return [baseStyles, tw`border border-red-400`];
+      }
+    }
+    return baseStyles;
+  };
+
   return (
-    <LinearGradient colors={['#0140CD', '#0140CD']} style={styles.container}>
+    <View style={tw`flex-1 bg-white`}>
       {/* Entry form animation */}
       <MotiView
         key={reloadKey}
@@ -104,17 +122,19 @@ export default function RegisterScreen() {
         animate={{ opacity: 1, translateX: 0 }}
         exit={{ opacity: 0, translateX: -width }}
         transition={{ type: 'timing', duration: 500, easing: Easing.inOut(Easing.cubic) }}
-        style={styles.formWrapper}
+        style={tw`flex-1 px-6 pt-20 justify-center`}
       >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.inner}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={tw`flex-1 gap-4`}>
           {/* Logo pop */}
           <MotiView
             from={{ opacity: 0, scale: 0.6 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: 'spring', damping: 15, stiffness: 100, delay: 100 }}
-            style={styles.logoContainer}
+            style={tw`items-center mb-4`}
           >
-            <Image source={require('../assets/logo.png')} style={styles.logo} />
+            <View style={tw`w-28 h-28 rounded-full bg-[#0140CD] justify-center items-center`}>
+              <Image source={require('../assets/logo.png')} style={tw`w-20 h-20`} />
+            </View>
           </MotiView>
 
           {/* Title slide-in */}
@@ -123,7 +143,7 @@ export default function RegisterScreen() {
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ type: 'timing', duration: 400, delay: 200, easing: Easing.out(Easing.exp) }}
           >
-            <Text style={styles.title}>Regístrate</Text>
+            <Text style={tw`text-2xl text-[#0140CD] font-bold text-center mb-4`}>Regístrate</Text>
           </MotiView>
 
           {/* Nombre input */}
@@ -131,13 +151,17 @@ export default function RegisterScreen() {
             from={{ opacity: 0, translateX: -width * 0.5 }}
             animate={{ opacity: 1, translateX: 0 }}
             transition={{ type: 'timing', duration: 400, delay: 300, easing: Easing.out(Easing.exp) }}
-            style={[styles.inputContainer, touched.nombre && nombre.trim() === '' && styles.inputError]}
+            style={tw`flex-row items-center bg-gray-100 rounded-xl px-3 h-12 mb-1 border border-gray-200 ${touched.nombre && nombre.trim() === '' ? 'border-red-400' : ''}`}
           >
-            <Feather name="user" size={20} color={focused === 'nombre' ? '#fff' : '#ccc'} />
+            <Feather
+              name="user"
+              size={20}
+              color={focused === 'nombre' ? '#0140CD' : '#999'}
+            />
             <TextInput
               placeholder="Nombre"
-              placeholderTextColor="#aaa"
-              style={styles.input}
+              placeholderTextColor="#999"
+              style={getInputStyles('nombre')}
               value={nombre}
               onChangeText={setNombre}
               onFocus={() => setFocused('nombre')}
@@ -151,13 +175,17 @@ export default function RegisterScreen() {
             from={{ opacity: 0, translateX: width * 0.5 }}
             animate={{ opacity: 1, translateX: 0 }}
             transition={{ type: 'timing', duration: 400, delay: 400, easing: Easing.out(Easing.exp) }}
-            style={[styles.inputContainer, touched.apellido && apellido.trim() === '' && styles.inputError]}
+            style={tw`flex-row items-center bg-gray-100 rounded-xl px-3 h-12 mb-1 border border-gray-200 ${touched.apellido && apellido.trim() === '' ? 'border-red-400' : ''}`}
           >
-            <Feather name="user" size={20} color={focused === 'apellido' ? '#fff' : '#ccc'} />
+            <Feather
+              name="user"
+              size={20}
+              color={focused === 'apellido' ? '#0140CD' : '#999'}
+            />
             <TextInput
               placeholder="Apellido"
-              placeholderTextColor="#aaa"
-              style={styles.input}
+              placeholderTextColor="#999"
+              style={getInputStyles('apellido')}
               value={apellido}
               onChangeText={setApellido}
               onFocus={() => setFocused('apellido')}
@@ -171,14 +199,18 @@ export default function RegisterScreen() {
             from={{ opacity: 0, translateX: -width * 0.5 }}
             animate={{ opacity: 1, translateX: 0 }}
             transition={{ type: 'timing', duration: 400, delay: 500, easing: Easing.out(Easing.exp) }}
-            style={[styles.inputContainer, touched.correo && !isCorreoValid && styles.inputError]}
+            style={tw`flex-row items-center bg-gray-100 rounded-xl px-3 h-12 mb-1 border border-gray-200 ${touched.correo && !isCorreoValid ? 'border-red-400' : ''}`}
           >
-            <Feather name="mail" size={20} color={focused === 'correo' ? '#fff' : '#ccc'} />
+            <Feather
+              name="mail"
+              size={20}
+              color={focused === 'correo' ? '#0140CD' : '#999'}
+            />
             <TextInput
               placeholder="Correo electrónico"
-              placeholderTextColor="#aaa"
+              placeholderTextColor="#999"
               keyboardType="email-address"
-              style={styles.input}
+              style={getInputStyles('correo')}
               value={correo}
               onChangeText={setCorreo}
               onFocus={() => setFocused('correo')}
@@ -192,14 +224,18 @@ export default function RegisterScreen() {
             from={{ opacity: 0, translateX: width * 0.5 }}
             animate={{ opacity: 1, translateX: 0 }}
             transition={{ type: 'timing', duration: 400, delay: 600, easing: Easing.out(Easing.exp) }}
-            style={[styles.inputContainer, touched.contrasena && !isPasswordValid && styles.inputError]}
+            style={tw`flex-row items-center bg-gray-100 rounded-xl px-3 h-12 mb-1 border border-gray-200 ${touched.contrasena && !isPasswordValid ? 'border-red-400' : ''}`}
           >
-            <Feather name="lock" size={20} color={focused === 'contrasena' ? '#fff' : '#ccc'} />
+            <Feather
+              name="lock"
+              size={20}
+              color={focused === 'contrasena' ? '#0140CD' : '#999'}
+            />
             <TextInput
               placeholder="Contraseña"
-              placeholderTextColor="#aaa"
+              placeholderTextColor="#999"
               secureTextEntry
-              style={styles.input}
+              style={getInputStyles('contrasena')}
               value={contrasena}
               onChangeText={setContrasena}
               onFocus={() => setFocused('contrasena')}
@@ -213,16 +249,27 @@ export default function RegisterScreen() {
             from={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: 'timing', duration: 400, delay: 700 }}
-            style={styles.buttonWrapper}
+            style={tw`mt-3`}
           >
-            <Pressable onPress={handleRegister} disabled={loading} style={styles.button}>
-              {loading ? <ActivityIndicator color="#0140CD" /> : <Text style={styles.buttonText}>Registrarse</Text>}
+            <Pressable
+              onPress={handleRegister}
+              disabled={loading}
+              style={({ pressed }) => tw`bg-[#0140CD] border-2 border-[#0140CD] py-3.5 rounded-xl items-center ${pressed ? 'opacity-90' : ''}`}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={tw`text-white text-base font-semibold`}>Registrarse</Text>
+              )}
             </Pressable>
           </MotiView>
 
           {/* Back to login link */}
-          <Pressable onPress={() => router.replace('/login')} style={styles.registerLink}>
-            <Text style={styles.registerText}>¿Ya tienes cuenta? Inicia sesión</Text>
+          <Pressable
+            onPress={() => router.replace('/login')}
+            style={({ pressed }) => tw`mt-4 items-center ${pressed ? 'opacity-70' : ''}`}
+          >
+            <Text style={tw`text-[#0140CD] underline`}>¿Ya tienes cuenta? Inicia sesión</Text>
           </Pressable>
         </KeyboardAvoidingView>
       </MotiView>
@@ -235,10 +282,10 @@ export default function RegisterScreen() {
             animate={{ opacity: 1, translateY: 0 }}
             exit={{ opacity: 0, translateY: 80 }}
             transition={{ type: 'timing', duration: 300 }}
-            style={[styles.toast, { backgroundColor: '#d4edda' }]}
+            style={tw`absolute bottom-8 left-6 right-6 flex-row items-center p-3 rounded-xl bg-green-100`}
           >
             <Feather name="check-circle" size={20} color="#155724" />
-            <Text style={[styles.toastText, { color: '#155724' }]}>Registro exitoso</Text>
+            <Text style={tw`ml-2 text-sm font-medium text-green-800`}>Registro exitoso</Text>
           </MotiView>
         )}
       </AnimatePresence>
@@ -249,32 +296,13 @@ export default function RegisterScreen() {
             animate={{ opacity: 1, translateY: 0 }}
             exit={{ opacity: 0, translateY: 80 }}
             transition={{ type: 'timing', duration: 300 }}
-            style={[styles.toast, { backgroundColor: '#fdecea' }]}
+            style={tw`absolute bottom-8 left-6 right-6 flex-row items-center p-3 rounded-xl bg-red-100`}
           >
             <Feather name="x-circle" size={20} color="#dc3545" />
-            <Text style={[styles.toastText, { color: '#dc3545' }]}>{error}</Text>
+            <Text style={tw`ml-2 text-sm font-medium text-red-700`}>{error}</Text>
           </MotiView>
         )}
       </AnimatePresence>
-    </LinearGradient>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0140CD' },
-  formWrapper: { flex:1, paddingHorizontal:24, paddingTop:80, justifyContent:'center' },
-  inner: { flex:1, gap:16 },
-  logoContainer: { alignItems:'center', marginBottom:16 },
-  logo: { width:100, height:100 },
-  title: { fontSize:28, color:'#fff', fontWeight:'700', textAlign:'center', marginBottom:16 },
-  inputContainer: { flexDirection:'row', alignItems:'center', backgroundColor:'rgba(255,255,255,0.15)', borderRadius:12, paddingHorizontal:12, height:48, marginBottom:4 },
-  input: { flex:1, color:'#fff', marginLeft:8, fontSize:16 },
-  inputError: { borderColor:'#ff6b6b', borderWidth:1 },
-  buttonWrapper: { marginTop:12 },
-  button: { backgroundColor:'#fff', borderWidth:2, borderColor:'#0140CD', paddingVertical:14, borderRadius:12, alignItems:'center' },
-  buttonText: { color:'#0140CD', fontSize:16, fontWeight:'600' },
-  registerLink: { marginTop:16, alignItems:'center' },
-  registerText: { color:'#fff', textDecorationLine:'underline' },
-  toast: { position:'absolute', bottom:32, left:24, right:24, flexDirection:'row', alignItems:'center', padding:12, borderRadius:12 },
-  toastText: { marginLeft:8, fontSize:14, fontWeight:'500' },
-});

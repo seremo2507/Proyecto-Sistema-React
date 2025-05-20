@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
   TouchableOpacity,
   RefreshControl,
@@ -13,9 +12,9 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DrawerActions, useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { MotiView } from 'moti';
+import tw from 'twrnc';
 
 type Envio = {
   id_asignacion: number;
@@ -95,10 +94,21 @@ export default function HomeScreen() {
       from={{ opacity: 0, translateY: 20 }}
       animate={{ opacity: 1, translateY: 0 }}
       transition={{ delay: index * 100 }}
-      style={{ marginBottom: 16 }}
+      style={tw`mb-4`}
     >
       <TouchableOpacity
-        style={[styles.card, { borderLeftColor: estadoColor(item.estado_envio) }]}
+        style={[
+          tw`bg-white mx-4 rounded-xl p-4 shadow`,
+          { 
+            borderLeftWidth: 4, 
+            borderLeftColor: estadoColor(item.estado_envio),
+            shadowColor: '#000',
+            shadowOpacity: 0.1,
+            shadowOffset: { width: 0, height: 2 },
+            shadowRadius: 4,
+            elevation: 3
+          }
+        ]}
         onPress={() =>
           router.replace({
             pathname: '/detalle-envio',
@@ -106,15 +116,20 @@ export default function HomeScreen() {
           })
         }
       >
-        <View style={styles.cardHeader}>
+        <View style={tw`flex-row items-center mb-2`}>
           <Ionicons name="cube-outline" size={24} color={estadoColor(item.estado_envio)} />
-          <Text style={styles.cardTitle}>Envío N.º {item.id_envio}</Text>
+          <Text style={tw`text-gray-800 text-lg font-semibold ml-2`}>
+            Envío N.º {item.id_envio}
+          </Text>
         </View>
-        <Text style={styles.cardSub}>
+        <Text style={tw`text-gray-500 text-sm mb-3`}>
           {item.cargas?.[0]?.tipo || '—'} ▪︎ {item.recogidaEntrega?.fecha_recogida?.split('T')[0] || '—'}
         </Text>
-        <View style={styles.estadoBadge}>
-          <Text style={[styles.estadoText, { backgroundColor: estadoColor(item.estado_envio) }]}>
+        <View style={tw`self-start rounded-xl overflow-hidden`}>
+          <Text style={[
+            tw`text-white py-1 px-3 text-xs`,
+            { backgroundColor: estadoColor(item.estado_envio) }
+          ]}>
             {item.estado_envio}
           </Text>
         </View>
@@ -123,67 +138,66 @@ export default function HomeScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={tw`flex-1 bg-white`}>
       <StatusBar barStyle="dark-content" />
-      <View style={styles.header}>
+      <View style={tw`flex-row items-center pt-12 px-4 pb-4`}>
         <TouchableOpacity onPress={() => navigation.dispatch(DrawerActions.openDrawer())}>
           <Ionicons name="menu" size={28} color="#0140CD" />
         </TouchableOpacity>
-        <View style={styles.greeting}>
-          <Text style={styles.greetingText}>Hola,</Text>
-          <Text style={styles.greetingName}>{usuario.nombre}</Text>
+        <View style={tw`flex-1 ml-3`}>
+          <Text style={tw`text-gray-500 text-base`}>Hola,</Text>
+          <Text style={tw`text-gray-800 text-xl font-bold`}>{usuario.nombre}</Text>
         </View>
-        <Image source={require('../assets/logo.png')} style={styles.avatar} />
+        <View style={tw`w-10 h-10 rounded-full bg-[#0140CD] justify-center items-center`}>
+          <Image source={require('../assets/logo.png')} style={tw`w-8 h-8`} />
+        </View>
       </View>
 
       {(usuario.rol === 'admin' || usuario.rol === 'cliente') ? (
-        <View style={styles.adminContainer}>
-          <Text style={styles.subtitle}>Panel de Administrador</Text>
-          <TouchableOpacity style={styles.adminButton} onPress={() => router.push('/crear-envio/CrearEnvio')}>
-            <Ionicons name="add-circle-outline" size={24} color="#0140CD" style={{ marginRight: 8 }} />
-            <Text style={styles.adminButtonText}>Crear Envío</Text>
+        <View style={tw`flex-1 justify-center items-center p-4`}>
+          <Text style={tw`text-gray-800 text-xl font-bold mb-5`}>Panel de Administrador</Text>
+          <TouchableOpacity 
+            style={[
+              tw`flex-row items-center bg-white border-2 border-[#0140CD] py-3.5 px-6 rounded-xl`,
+              { 
+                shadowColor: '#000',
+                shadowOpacity: 0.1,
+                shadowOffset: { width: 0, height: 4 },
+                shadowRadius: 6,
+                elevation: 4
+              }
+            ]} 
+            onPress={() => router.push('/crear-envio/CrearEnvio')}
+          >
+            <Ionicons name="add-circle-outline" size={24} color="#0140CD" style={tw`mr-2`} />
+            <Text style={tw`text-[#0140CD] text-base font-semibold`}>Crear Envío</Text>
           </TouchableOpacity>
         </View>
       ) : usuario.rol === 'transportista' && (
         loading ? (
-          <View style={styles.loadingContainer}>
+          <View style={tw`flex-1 justify-center items-center`}>
             <ActivityIndicator size="large" color="#0140CD" />
           </View>
         ) : envios.length === 0 ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.noData}>No tienes envíos asignados.</Text>
+          <View style={tw`flex-1 justify-center items-center`}>
+            <Text style={tw`text-gray-600 text-base`}>No tienes envíos asignados.</Text>
           </View>
         ) : (
           <FlatList
             data={envios}
             keyExtractor={item => item.id_asignacion.toString()}
             renderItem={renderEnvio}
-            contentContainerStyle={{ paddingTop: 8, paddingBottom: 24 }}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0140CD']} />}
+            contentContainerStyle={tw`pt-2 pb-6`}
+            refreshControl={
+              <RefreshControl 
+                refreshing={refreshing} 
+                onRefresh={onRefresh} 
+                colors={['#0140CD']} 
+              />
+            }
           />
         )
       )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingTop: 48, paddingHorizontal: 16, paddingBottom: 16 },
-  greeting: { flex: 1, marginLeft: 12 },
-  greetingText: { color: '#999', fontSize: 16 },
-  greetingName: { color: '#333', fontSize: 22, fontWeight: '700' },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#0140CD', padding: 5 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  noData: { color: '#666', fontSize: 16 },
-  card: { backgroundColor: '#fff', marginHorizontal: 16, borderRadius: 12, padding: 16, borderLeftWidth: 4, shadowColor: '#000', shadowOpacity: 0.1, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 3 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  cardTitle: { color: '#333', fontSize: 18, fontWeight: '600', marginLeft: 8 },
-  cardSub: { color: '#777', fontSize: 14, marginBottom: 12 },
-  estadoBadge: { alignSelf: 'flex-start', borderRadius: 12, overflow: 'hidden' },
-  estadoText: { color: '#fff', paddingVertical: 4, paddingHorizontal: 12, fontSize: 12 },
-  adminContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16 },
-  subtitle: { color: '#333', fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
-  adminButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderWidth: 2, borderColor: '#0140CD', paddingVertical: 14, paddingHorizontal: 24, borderRadius: 12, shadowColor: '#000', shadowOpacity: 0.1, shadowOffset: { width: 0, height: 4 }, shadowRadius: 6, elevation: 4 },
-  adminButtonText: { color: '#0140CD', fontSize: 16, fontWeight: '600' },
-});
