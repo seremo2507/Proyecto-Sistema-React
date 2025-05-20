@@ -15,8 +15,10 @@ export default function WelcomeScreen() {
   const router = useRouter();
   const { width, height } = Dimensions.get('window');
   const LOGO_SIZE = width * 0.4;
+  
+  // Restauramos los cálculos originales para el logo
   const centerY = (height - LOGO_SIZE) / 2;
-  const topY = 120;
+  const topY = 200; // Ajustado para que no suba tanto (original: 120)
   
   // Estados para controlar cada fase de la animación
   const [animationStage, setAnimationStage] = useState(1);
@@ -131,7 +133,7 @@ export default function WelcomeScreen() {
 
   return (
     <LinearGradient colors={['#FFFFFF', '#FFFFFF']} style={tw`flex-1 bg-white`}>
-      {/* Logo animado */}
+      {/* Logo animado - restaurado como en el original */}
       <MotiView
         from={{ translateY: height, translateX: (width - LOGO_SIZE) / 2 }}
         animate={{ 
@@ -168,9 +170,9 @@ export default function WelcomeScreen() {
         <View
           style={{
             position: 'absolute',
-            left: animationStage === 3 ? width / 2 : width / 2 + 20, // Ajuste para evitar superposición
+            left: animationStage === 3 ? width / 2 : width / 2 + 20,
             top: centerY + (LOGO_SIZE / 4),
-            zIndex: 5, // Menor que el logo para que quede detrás
+            zIndex: 5,
           }}
         >
           <Text style={tw`text-3xl font-bold text-[#0140CD]`}>
@@ -180,13 +182,13 @@ export default function WelcomeScreen() {
         </View>
       )}
 
-      {/* Contenido final (título, subtítulo y botón) */}
+      {/* Contenido final (título, subtítulo y botón) - ahora centrado */}
       {showFinalContent && (
         <View
           style={[
             tw`absolute w-full items-center`,
             {
-              top: topY + LOGO_SIZE + 20,
+              top: topY + LOGO_SIZE + 40, // Ajustado para mejor posición con el logo más bajo
             }
           ]}
         >
@@ -194,7 +196,7 @@ export default function WelcomeScreen() {
             from={{ opacity: 0, translateY: 20 }}
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ type: 'timing', duration: 600 }}
-            style={tw`text-2xl text-[#0140CD] font-bold mb-2`}
+            style={tw`text-2xl text-[#0140CD] font-bold mb-2 text-center`}
           >
             Bienvenido a OrgaTrack
           </MotiText>
@@ -203,7 +205,7 @@ export default function WelcomeScreen() {
             from={{ opacity: 0, translateY: 20 }}
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ type: 'timing', duration: 600, delay: 600 }}
-            style={tw`text-base text-gray-600 text-center mb-8 px-6`}
+            style={tw`text-base text-gray-600 text-center mb-8 px-6 max-w-xs mx-auto`}
           >
             Optimiza tu logística en cada envío
           </MotiText>
@@ -214,8 +216,8 @@ export default function WelcomeScreen() {
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ 
               type: 'timing', 
-              duration: 400, // Reducido de 800ms a 400ms
-              delay: 900    // Reducido de 1200ms a 900ms
+              duration: 400,
+              delay: 900
             }}
             style={tw`overflow-hidden`}
           >
