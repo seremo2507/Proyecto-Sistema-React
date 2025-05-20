@@ -366,6 +366,14 @@ const startPollingFirma = () => {
         {ruta.length>0 && <Polyline coordinates={ruta} strokeColor="#0140CD" strokeWidth={4}/>}
       </MapView>
 
+      {/* Botón Volver */}
+      <TouchableOpacity 
+        style={tw`absolute top-12 left-4 bg-white w-10 h-10 rounded-full shadow-lg items-center justify-center`}
+        onPress={() => router.replace('/home')}
+      >
+        <Ionicons name="arrow-back" size={24} color="#0140CD" />
+      </TouchableOpacity>
+
       {/* barra info - mejorada */}
       <TouchableOpacity 
         style={[
