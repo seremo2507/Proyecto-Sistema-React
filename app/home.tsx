@@ -13,7 +13,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DrawerActions, useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { MotiView } from 'moti';
 import tw from 'twrnc';
 
 type Envio = {
@@ -22,6 +21,9 @@ type Envio = {
   estado_envio: string;
   cargas?: { tipo: string }[];
   recogidaEntrega?: { fecha_recogida: string };
+  cliente?: string;
+  origen?: string;
+  destino?: string;
   [key: string]: any;
 };
 
@@ -29,7 +31,8 @@ export default function HomeScreen() {
   const [envios, setEnvios] = useState<Envio[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [usuario, setUsuario] = useState<{ nombre: string; rol: string }>({ nombre: 'Transportista', rol: 'transportista' });
+  const [usuario, setUsuario] = useState<{ nombre: string; rol: string }>({ nombre: 'Juan', rol: 'transportista' });
+  const [filtroActual, setFiltroActual] = useState<string>('asignado');
 
   const navigation = useNavigation();
 
@@ -59,7 +62,7 @@ export default function HomeScreen() {
         const raw = await AsyncStorage.getItem('usuario');
         const parsed = raw ? JSON.parse(raw) : {};
         const rol = parsed.rol || 'transportista';
-        setUsuario({ nombre: parsed.nombre || 'Usuario', rol });
+        setUsuario({ nombre: parsed.nombre || 'Juan', rol });
         if (rol === 'transportista') {
           await fetchEnvios();
         }
@@ -76,32 +79,30 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  // Status color helper
-  const estadoColor = (estado: string) => {
-    switch (estado.toLowerCase()) {
-      case 'entregado': return '#28a745';
-      case 'en ruta':
-      case 'en curso': return '#fd7e14';
-      case 'asignado': return '#007bff';
-      case 'pendiente': return '#6c757d';
-      default: return '#adb5bd';
+  // Filtrar envíos según el estado seleccionado
+  const enviosFiltrados = envios.filter(envio => {
+    const estado = envio.estado_envio.toLowerCase();
+    switch (filtroActual) {
+      case 'en curso':
+        return estado === 'en ruta' || estado === 'en curso';
+      case 'completados':
+        return estado === 'entregado';
+      case 'asignado':
+        return estado === 'asignado';
+      default:
+        return true;
     }
-  };
+  });
 
   // Render shipment
-  const renderEnvio = ({ item, index }: { item: Envio; index: number }) => (
-    <MotiView
-      from={{ opacity: 0, translateY: 20 }}
-      animate={{ opacity: 1, translateY: 0 }}
-      transition={{ delay: index * 100 }}
-      style={tw`mb-4`}
-    >
+  const renderEnvio = ({ item }: { item: Envio }) => (
+    <View style={tw`mb-4`}>
       <TouchableOpacity
         style={[
           tw`bg-white mx-4 rounded-xl p-4 shadow`,
           { 
             borderLeftWidth: 4, 
-            borderLeftColor: estadoColor(item.estado_envio),
+            borderLeftColor: '#0140CD',
             shadowColor: '#000',
             shadowOpacity: 0.1,
             shadowOffset: { width: 0, height: 2 },
@@ -117,7 +118,7 @@ export default function HomeScreen() {
         }
       >
         <View style={tw`flex-row items-center mb-2`}>
-          <Ionicons name="cube-outline" size={24} color={estadoColor(item.estado_envio)} />
+          <Ionicons name="cube-outline" size={24} color="#0140CD" />
           <Text style={tw`text-gray-800 text-lg font-semibold ml-2`}>
             Envío N.º {item.id_envio}
           </Text>
@@ -126,33 +127,59 @@ export default function HomeScreen() {
           {item.cargas?.[0]?.tipo || '—'} ▪︎ {item.recogidaEntrega?.fecha_recogida?.split('T')[0] || '—'}
         </Text>
         <View style={tw`self-start rounded-xl overflow-hidden`}>
-          <Text style={[
-            tw`text-white py-1 px-3 text-xs`,
-            { backgroundColor: estadoColor(item.estado_envio) }
-          ]}>
+          <Text style={tw`text-white py-1 px-3 text-xs bg-[#0140CD]`}>
             {item.estado_envio}
           </Text>
         </View>
       </TouchableOpacity>
-    </MotiView>
+    </View>
   );
 
   return (
-    <View style={tw`flex-1 bg-white`}>
+    <View style={tw`flex-1 bg-gray-100`}>
       <StatusBar barStyle="dark-content" />
-      <View style={tw`flex-row items-center pt-12 px-4 pb-4`}>
+      
+      {/* Header con el logo original */}
+      <View style={tw`flex-row items-center pt-10 px-4 pb-4 bg-white`}>
         <TouchableOpacity onPress={() => navigation.dispatch(DrawerActions.openDrawer())}>
           <Ionicons name="menu" size={28} color="#0140CD" />
         </TouchableOpacity>
         <View style={tw`flex-1 ml-3`}>
           <Text style={tw`text-gray-500 text-base`}>Hola,</Text>
-          <Text style={tw`text-gray-800 text-xl font-bold`}>{usuario.nombre}</Text>
+          <Text style={tw`text-gray-800 text-2xl font-bold`}>{usuario.nombre}</Text>
         </View>
         <View style={tw`w-10 h-10 rounded-full bg-[#0140CD] justify-center items-center`}>
           <Image source={require('../assets/logo.png')} style={tw`w-8 h-8`} />
         </View>
       </View>
 
+      {/* Filtros - Solo visibles para transportistas */}
+      {usuario.rol === 'transportista' && (
+        <View style={tw`flex-row justify-center py-3 bg-white mb-px`}>
+          <TouchableOpacity
+            style={tw`px-3 py-1.5 mx-1 ${filtroActual === 'en curso' ? 'border border-[#0140CD] rounded-full' : ''}`}
+            onPress={() => setFiltroActual('en curso')}
+          >
+            <Text style={tw`${filtroActual === 'en curso' ? 'text-[#0140CD]' : 'text-gray-600'}`}>En Curso</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={tw`px-3 py-1.5 mx-1 ${filtroActual === 'completados' ? 'border border-[#0140CD] rounded-full' : ''}`}
+            onPress={() => setFiltroActual('completados')}
+          >
+            <Text style={tw`${filtroActual === 'completados' ? 'text-[#0140CD]' : 'text-gray-600'}`}>Completados</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={tw`px-3 py-1.5 mx-1 ${filtroActual === 'asignado' ? 'border border-[#0140CD] rounded-full' : ''}`}
+            onPress={() => setFiltroActual('asignado')}
+          >
+            <Text style={tw`${filtroActual === 'asignado' ? 'text-[#0140CD]' : 'text-gray-600'}`}>Asignados</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Mostrar panel de admin/cliente o lista de envíos para transportista */}
       {(usuario.rol === 'admin' || usuario.rol === 'cliente') ? (
         <View style={tw`flex-1 justify-center items-center p-4`}>
           <Text style={tw`text-gray-800 text-xl font-bold mb-5`}>Panel de Administrador</Text>
@@ -178,13 +205,13 @@ export default function HomeScreen() {
           <View style={tw`flex-1 justify-center items-center`}>
             <ActivityIndicator size="large" color="#0140CD" />
           </View>
-        ) : envios.length === 0 ? (
+        ) : enviosFiltrados.length === 0 ? (
           <View style={tw`flex-1 justify-center items-center`}>
-            <Text style={tw`text-gray-600 text-base`}>No tienes envíos asignados.</Text>
+            <Text style={tw`text-gray-600 text-lg`}>No hay envíos para mostrar</Text>
           </View>
         ) : (
           <FlatList
-            data={envios}
+            data={enviosFiltrados}
             keyExtractor={item => item.id_asignacion.toString()}
             renderItem={renderEnvio}
             contentContainerStyle={tw`pt-2 pb-6`}
