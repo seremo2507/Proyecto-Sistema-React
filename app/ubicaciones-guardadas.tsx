@@ -9,6 +9,10 @@ import {
   TextInput,
   ScrollView,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, Marker, Polyline, Region } from 'react-native-maps';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -51,6 +55,7 @@ export default function UbicacionesGuardadasScreen() {
   const navigation = useNavigation();
   const params = useLocalSearchParams();
   const mapViewRef = useRef<MapView | null>(null);
+  const scrollViewRef = useRef<ScrollView | null>(null);
 
   // Estado
   const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>([]);
@@ -442,146 +447,171 @@ export default function UbicacionesGuardadasScreen() {
   // Create/Edit Screen
   if (showMap) {
     return (
-      <View style={tw`flex-1 bg-gray-100`}>
-        {/* White card container */}
-        <View style={tw`m-4 bg-white rounded-lg shadow-md overflow-hidden`}>
-          {/* Header */}
-          <View style={tw`p-5`}>
-            <Text style={tw`text-xl font-bold text-black`}>
-              {editMode ? 'Editar dirección' : 'Seleccionar Origen y Destino en el Mapa'}
-            </Text>
-            <Text style={tw`mt-2 text-gray-700`}>
-              {`Haz clic en el mapa para seleccionar el ${stage === 0 ? 'origen' : stage === 1 ? 'destino' : 'origen'}`}
-            </Text>
-          </View>
-          
-          {/* Status message */}
-          <View style={tw`mx-5 my-2 bg-blue-50 p-3 rounded-md`}>
-            <Text style={tw`text-center text-blue-600`}>
-              {successMessage ? successMessage : 
-                stage === 0 
-                  ? 'Selecciona el punto de origen en el mapa' 
-                  : stage === 1 
-                    ? 'Selecciona el punto de destino en el mapa' 
-                    : loadingRoute
-                      ? 'Calculando ruta...'
-                      : 'Puntos seleccionados correctamente'}
-            </Text>
-          </View>
-          
-          {/* Map */}
-          <View style={tw`mx-5 h-60 rounded-md overflow-hidden mb-4`}>
-            <MapView 
-              ref={mapViewRef}
-              provider={PROVIDER_GOOGLE}
-              style={tw`flex-1`} 
-              initialRegion={initialRegion} 
-              onPress={(e) => {
-                // Usar e.persist() para evitar que el evento sea reciclado
-                e.persist && e.persist();
-                
-                if (!e.nativeEvent || !e.nativeEvent.coordinate) {
-                  console.error('Evento de mapa inválido');
-                  return;
-                }
-                
-                const coordinate = e.nativeEvent.coordinate;
-                
-                // Simplificado: siempre seleccionar origen primero, luego destino
-                if (stage === 0 || (editMode && stage === 2)) {
-                  setOrigin(coordinate);
-                  setStage(1); // Ahora a seleccionar destino
-                } else if (stage === 1) {
-                  setDest(coordinate);
-                  setStage(2); // Completado
-                }
-              }}
-            >
-              {origin && <Marker coordinate={origin} pinColor="green"/>}
-              {dest && <Marker coordinate={dest} pinColor="red"/>}
+      <KeyboardAvoidingView 
+        style={tw`flex-1 bg-gray-100`} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView 
+            ref={scrollViewRef}
+            style={tw`flex-1`}
+            contentContainerStyle={tw`pb-6`}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* White card container */}
+            <View style={tw`m-4 bg-white rounded-lg shadow-md overflow-hidden`}>
+              {/* Header */}
+              <View style={tw`p-5`}>
+                <Text style={tw`text-xl font-bold text-black`}>
+                  {editMode ? 'Editar dirección' : 'Seleccionar Origen y Destino en el Mapa'}
+                </Text>
+                <Text style={tw`mt-2 text-gray-700`}>
+                  {`Haz clic en el mapa para seleccionar el ${stage === 0 ? 'origen' : stage === 1 ? 'destino' : 'origen'}`}
+                </Text>
+              </View>
               
-              {/* Mostrar solamente la ruta final cuando está disponible */}
-              {routeCoords.length > 0 && !loadingRoute && (
-                <Polyline 
-                  coordinates={routeCoords} 
-                  strokeWidth={3} 
-                  strokeColor="#0140CD" 
-                />
-              )}
-            </MapView>
-            
-            {/* Mostrar indicador de carga fuera del MapView para evitar problemas */}
-            {loadingRoute && (
-              <View style={tw`absolute inset-0 items-center justify-center pointer-events-none`}>
-                <View style={tw`bg-white bg-opacity-70 p-2 rounded-full`}>
-                  <ActivityIndicator size="small" color="#0140CD" />
+              {/* Status message */}
+              <View style={tw`mx-5 my-2 bg-blue-50 p-3 rounded-md`}>
+                <Text style={tw`text-center text-blue-600`}>
+                  {successMessage ? successMessage : 
+                    stage === 0 
+                      ? 'Selecciona el punto de origen en el mapa' 
+                      : stage === 1 
+                        ? 'Selecciona el punto de destino en el mapa' 
+                        : loadingRoute
+                          ? 'Calculando ruta...'
+                          : 'Puntos seleccionados correctamente'}
+                </Text>
+              </View>
+              
+              {/* Map */}
+              <View style={tw`mx-5 h-60 rounded-md overflow-hidden mb-4`}>
+                <MapView 
+                  ref={mapViewRef}
+                  provider={PROVIDER_GOOGLE}
+                  style={tw`flex-1`} 
+                  initialRegion={initialRegion} 
+                  onPress={(e) => {
+                    // Usar e.persist() para evitar que el evento sea reciclado
+                    e.persist && e.persist();
+                    
+                    if (!e.nativeEvent || !e.nativeEvent.coordinate) {
+                      console.error('Evento de mapa inválido');
+                      return;
+                    }
+                    
+                    const coordinate = e.nativeEvent.coordinate;
+                    
+                    // Simplificado: siempre seleccionar origen primero, luego destino
+                    if (stage === 0 || (editMode && stage === 2)) {
+                      setOrigin(coordinate);
+                      setStage(1); // Ahora a seleccionar destino
+                    } else if (stage === 1) {
+                      setDest(coordinate);
+                      setStage(2); // Completado
+                    }
+                  }}
+                >
+                  {origin && <Marker coordinate={origin} pinColor="green"/>}
+                  {dest && <Marker coordinate={dest} pinColor="red"/>}
+                  
+                  {/* Mostrar solamente la ruta final cuando está disponible */}
+                  {routeCoords.length > 0 && !loadingRoute && (
+                    <Polyline 
+                      coordinates={routeCoords} 
+                      strokeWidth={3} 
+                      strokeColor="#0140CD" 
+                    />
+                  )}
+                </MapView>
+                
+                {/* Mostrar indicador de carga fuera del MapView para evitar problemas */}
+                {loadingRoute && (
+                  <View style={tw`absolute inset-0 items-center justify-center pointer-events-none`}>
+                    <View style={tw`bg-white bg-opacity-70 p-2 rounded-full`}>
+                      <ActivityIndicator size="small" color="#0140CD" />
+                    </View>
+                  </View>
+                )}
+              </View>
+              
+              {/* Input fields */}
+              <View style={tw`px-5`}>
+                <View style={tw`mb-4`}>
+                  <Text style={tw`text-gray-700 mb-1`}>Nombre del lugar de origen:</Text>
+                  <TextInput 
+                    placeholder="Ej. Finca Orgánica La Esperanza" 
+                    style={tw`border border-gray-300 rounded-lg p-3 text-gray-700`}
+                    value={nombreOrigen}
+                    onChangeText={setNombreOrigen}
+                    onFocus={() => {
+                      // Scroll to input cuando recibe foco
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollToEnd({ animated: true });
+                      }, 100);
+                    }}
+                  />
+                </View>
+                
+                <View style={tw`mb-4`}>
+                  <Text style={tw`text-gray-700 mb-1`}>Nombre del lugar de destino:</Text>
+                  <TextInput 
+                    placeholder="Ej. Planta Central de Procesamiento" 
+                    style={tw`border border-gray-300 rounded-lg p-3 text-gray-700`}
+                    value={nombreDestino}
+                    onChangeText={setNombreDestino}
+                    onFocus={() => {
+                      // Scroll to input cuando recibe foco
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollToEnd({ animated: true });
+                      }, 100);
+                    }}
+                  />
                 </View>
               </View>
-            )}
-          </View>
-          
-          {/* Input fields */}
-          <View style={tw`px-5`}>
-            <View style={tw`mb-4`}>
-              <Text style={tw`text-gray-700 mb-1`}>Nombre del lugar de origen:</Text>
-              <TextInput 
-                placeholder="Ej. Finca Orgánica La Esperanza" 
-                style={tw`border border-gray-300 rounded-lg p-3 text-gray-700`}
-                value={nombreOrigen}
-                onChangeText={setNombreOrigen}
-              />
-            </View>
-            
-            <View style={tw`mb-4`}>
-              <Text style={tw`text-gray-700 mb-1`}>Nombre del lugar de destino:</Text>
-              <TextInput 
-                placeholder="Ej. Planta Central de Procesamiento" 
-                style={tw`border border-gray-300 rounded-lg p-3 text-gray-700`}
-                value={nombreDestino}
-                onChangeText={setNombreDestino}
-              />
-            </View>
-          </View>
-          
-          {/* Show coordinates toggle */}
-          <View style={tw`px-5 mb-4`}>
-            <Pressable 
-              style={tw`flex-row items-center justify-end`}
-              onPress={() => setShowCoordinates(!showCoordinates)}
-            >
-              <Ionicons name="eye" size={16} color="#0140CD" />
-              <Text style={tw`ml-1 text-sm text-[#0140CD]`}>
-                MOSTRAR COORDENADAS
-              </Text>
-            </Pressable>
-            
-            {showCoordinates && (
-              <View style={tw`mt-2 p-3 bg-gray-100 rounded-md`}>
-                <Text style={tw`text-xs text-gray-700`}>
-                  Origen: {origin ? `${origin.latitude.toFixed(6)}, ${origin.longitude.toFixed(6)}` : 'No seleccionado'}
-                </Text>
-                <Text style={tw`text-xs text-gray-700 mt-1`}>
-                  Destino: {dest ? `${dest.latitude.toFixed(6)}, ${dest.longitude.toFixed(6)}` : 'No seleccionado'}
-                </Text>
+              
+              {/* Show coordinates toggle */}
+              <View style={tw`px-5 mb-4`}>
+                <Pressable 
+                  style={tw`flex-row items-center justify-end`}
+                  onPress={() => setShowCoordinates(!showCoordinates)}
+                >
+                  <Ionicons name="eye" size={16} color="#0140CD" />
+                  <Text style={tw`ml-1 text-sm text-[#0140CD]`}>
+                    MOSTRAR COORDENADAS
+                  </Text>
+                </Pressable>
+                
+                {showCoordinates && (
+                  <View style={tw`mt-2 p-3 bg-gray-100 rounded-md`}>
+                    <Text style={tw`text-xs text-gray-700`}>
+                      Origen: {origin ? `${origin.latitude.toFixed(6)}, ${origin.longitude.toFixed(6)}` : 'No seleccionado'}
+                    </Text>
+                    <Text style={tw`text-xs text-gray-700 mt-1`}>
+                      Destino: {dest ? `${dest.latitude.toFixed(6)}, ${dest.longitude.toFixed(6)}` : 'No seleccionado'}
+                    </Text>
+                  </View>
+                )}
               </View>
-            )}
-          </View>
-          
-          {/* Save/Update button */}
-          <View style={tw`px-5 mb-5 items-center`}>
-            <Pressable 
-              style={tw`${(origin && dest && nombreOrigen.trim() && nombreDestino.trim() && !loadingRoute) 
-                ? 'bg-[#0140CD]' 
-                : 'bg-gray-400'} py-3 px-4 rounded-lg w-56`}
-              onPress={editMode ? actualizarDireccion : guardarDireccion}
-              disabled={!(origin && dest && nombreOrigen.trim() && nombreDestino.trim()) || loadingRoute}
-            >
-              <Text style={tw`text-white text-center font-semibold`}>
-                {loadingRoute ? 'Procesando...' : editMode ? 'Actualizar dirección' : 'Guardar dirección'}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
+              
+              {/* Save/Update button */}
+              <View style={tw`px-5 mb-5 items-center`}>
+                <Pressable 
+                  style={tw`${(origin && dest && nombreOrigen.trim() && nombreDestino.trim() && !loadingRoute) 
+                    ? 'bg-[#0140CD]' 
+                    : 'bg-gray-400'} py-3 px-4 rounded-lg w-56`}
+                  onPress={editMode ? actualizarDireccion : guardarDireccion}
+                  disabled={!(origin && dest && nombreOrigen.trim() && nombreDestino.trim()) || loadingRoute}
+                >
+                  <Text style={tw`text-white text-center font-semibold`}>
+                    {loadingRoute ? 'Procesando...' : editMode ? 'Actualizar dirección' : 'Guardar dirección'}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </ScrollView>
+        </TouchableWithoutFeedback>
         
         {/* Progress bar for animation */}
         <View style={tw`absolute top-0 left-0 right-0 h-1 bg-gray-200`}>
@@ -597,7 +627,7 @@ export default function UbicacionesGuardadasScreen() {
             ]} 
           />
         </View>
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 
