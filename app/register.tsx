@@ -1,63 +1,29 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'expo-router';
 import {
   View,
   Text,
   TextInput,
   Pressable,
-  Dimensions,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   Image,
+  ScrollView,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { MotiView, AnimatePresence } from 'moti';
-import { Easing } from 'react-native-reanimated';
-import { useFocusEffect } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import tw from 'twrnc';
 
 export default function RegisterScreen() {
   const router = useRouter();
-  const { width } = Dimensions.get('window');
 
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
   const [correo, setCorreo] = useState('');
   const [contrasena, setContrasena] = useState('');
-  const [focused, setFocused] = useState<'nombre'|'apellido'|'correo'|'contrasena'|null>(null);
-  const [touched, setTouched] = useState({
-    nombre: false,
-    apellido: false,
-    correo: false,
-    contrasena: false,
-  });
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
-  const [reloadKey, setReloadKey] = useState(0);
-
-  // Replay entry animations on focus
-  useFocusEffect(
-    useCallback(() => {
-      setReloadKey(k => k + 1);
-    }, [])
-  );
-
-  // Auto-dismiss toasts after 2s
-  useEffect(() => {
-    if (success) {
-      const t = setTimeout(() => setSuccess(false), 2000);
-      return () => clearTimeout(t);
-    }
-  }, [success]);
-  useEffect(() => {
-    if (error) {
-      const t = setTimeout(() => setError(''), 2000);
-      return () => clearTimeout(t);
-    }
-  }, [error]);
 
   const emailRegex = /^[\w.-]+@[\w-]+\.[a-z]{2,}$/i;
   const isCorreoValid = emailRegex.test(correo);
@@ -66,15 +32,10 @@ export default function RegisterScreen() {
     nombre.trim() !== '' &&
     apellido.trim() !== '' &&
     isCorreoValid &&
-    isPasswordValid;
-
-  const handleBlur = (field: keyof typeof touched) => {
-    setFocused(null);
-    setTouched(prev => ({ ...prev, [field]: true }));
-  };
+    isPasswordValid &&
+    acceptTerms;
 
   const handleRegister = async () => {
-    setTouched({ nombre: true, apellido: true, correo: true, contrasena: true });
     if (!isFormValid) return;
     setLoading(true);
     try {
@@ -85,224 +46,109 @@ export default function RegisterScreen() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error en registro');
-      setSuccess(true);
-      setTimeout(() => router.replace('/login'), 2400);
-    } catch (e: any) {
+      setTimeout(() => router.replace('/login'), 1000);
+    } catch (e: any) { // Añadido tipado explícito como 'any'
       setError(e.message || 'Error de conexión');
     } finally {
       setLoading(false);
     }
   };
 
-  // Obtener las clases de estilo para inputs basadas en el estado
-  const getInputStyles = (field: keyof typeof touched) => {
-    const baseStyles = tw`flex-1 text-gray-800 ml-2 text-base`;
-    if (focused === field) {
-      return [baseStyles, tw`border border-[#0140CD]`];
-    }
-    if (touched[field]) {
-      if (
-        (field === 'nombre' && nombre.trim() === '') ||
-        (field === 'apellido' && apellido.trim() === '') ||
-        (field === 'correo' && !isCorreoValid) ||
-        (field === 'contrasena' && !isPasswordValid)
-      ) {
-        return [baseStyles, tw`border border-red-400`];
-      }
-    }
-    return baseStyles;
-  };
-
   return (
-    <View style={tw`flex-1 bg-white`}>
-      {/* Entry form animation */}
-      <MotiView
-        key={reloadKey}
-        from={{ opacity: 0, translateX: width }}
-        animate={{ opacity: 1, translateX: 0 }}
-        exit={{ opacity: 0, translateX: -width }}
-        transition={{ type: 'timing', duration: 500, easing: Easing.inOut(Easing.cubic) }}
-        style={tw`flex-1 px-6 pt-20 justify-center`}
-      >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={tw`flex-1 gap-4`}>
-          {/* Logo pop */}
-          <MotiView
-            from={{ opacity: 0, scale: 0.6 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: 'spring', damping: 15, stiffness: 100, delay: 100 }}
-            style={tw`items-center mb-4`}
-          >
-            <View style={tw`w-28 h-28 rounded-full bg-[#0140CD] justify-center items-center`}>
-              <Image source={require('../assets/logo.png')} style={tw`w-20 h-20`} />
-            </View>
-          </MotiView>
+    <ScrollView style={tw`flex-1 bg-[#0045cc]`} contentContainerStyle={tw`flex-1 justify-center items-center py-10`}>
+      <View style={tw`bg-white rounded-lg p-6 w-11/12 max-w-md`}>
+        {/* Title */}
+        <View style={tw`items-center mb-4`}>
+          <Text style={tw`text-3xl text-[#0045cc] font-bold`}>OrgTrack</Text>
+          <Text style={tw`text-gray-600 mt-1`}>Crea tu cuenta</Text>
+        </View>
 
-          {/* Title slide-in */}
-          <MotiView
-            from={{ opacity: 0, translateY: -10 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 400, delay: 200, easing: Easing.out(Easing.exp) }}
-          >
-            <Text style={tw`text-2xl text-[#0140CD] font-bold text-center mb-4`}>Regístrate</Text>
-          </MotiView>
+        <View style={tw`mb-4`}>
+          <Text style={tw`text-gray-700 mb-1`}>Nombre</Text>
+          <TextInput
+            placeholder="Tu nombre"
+            value={nombre}
+            onChangeText={setNombre}
+            style={tw`border border-gray-300 rounded-lg p-3 text-base`}
+            editable={!loading}
+          />
+        </View>
 
-          {/* Nombre input */}
-          <MotiView
-            from={{ opacity: 0, translateX: -width * 0.5 }}
-            animate={{ opacity: 1, translateX: 0 }}
-            transition={{ type: 'timing', duration: 400, delay: 300, easing: Easing.out(Easing.exp) }}
-            style={tw`flex-row items-center bg-gray-100 rounded-xl px-3 h-12 mb-1 border border-gray-200 ${touched.nombre && nombre.trim() === '' ? 'border-red-400' : ''}`}
-          >
-            <Feather
-              name="user"
-              size={20}
-              color={focused === 'nombre' ? '#0140CD' : '#999'}
-            />
-            <TextInput
-              placeholder="Nombre"
-              placeholderTextColor="#999"
-              style={getInputStyles('nombre')}
-              value={nombre}
-              onChangeText={setNombre}
-              onFocus={() => setFocused('nombre')}
-              onBlur={() => handleBlur('nombre')}
-              editable={!loading}
-            />
-          </MotiView>
+        <View style={tw`mb-4`}>
+          <Text style={tw`text-gray-700 mb-1`}>Apellido</Text>
+          <TextInput
+            placeholder="Tu apellido"
+            value={apellido}
+            onChangeText={setApellido}
+            style={tw`border border-gray-300 rounded-lg p-3 text-base`}
+            editable={!loading}
+          />
+        </View>
 
-          {/* Apellido input */}
-          <MotiView
-            from={{ opacity: 0, translateX: width * 0.5 }}
-            animate={{ opacity: 1, translateX: 0 }}
-            transition={{ type: 'timing', duration: 400, delay: 400, easing: Easing.out(Easing.exp) }}
-            style={tw`flex-row items-center bg-gray-100 rounded-xl px-3 h-12 mb-1 border border-gray-200 ${touched.apellido && apellido.trim() === '' ? 'border-red-400' : ''}`}
-          >
-            <Feather
-              name="user"
-              size={20}
-              color={focused === 'apellido' ? '#0140CD' : '#999'}
-            />
-            <TextInput
-              placeholder="Apellido"
-              placeholderTextColor="#999"
-              style={getInputStyles('apellido')}
-              value={apellido}
-              onChangeText={setApellido}
-              onFocus={() => setFocused('apellido')}
-              onBlur={() => handleBlur('apellido')}
-              editable={!loading}
-            />
-          </MotiView>
+        <View style={tw`mb-4`}>
+          <Text style={tw`text-gray-700 mb-1`}>Correo electrónico</Text>
+          <TextInput
+            placeholder="Email"
+            keyboardType="email-address"
+            value={correo}
+            onChangeText={setCorreo}
+            style={tw`border border-gray-300 rounded-lg p-3 text-base`}
+            editable={!loading}
+          />
+        </View>
 
-          {/* Correo input */}
-          <MotiView
-            from={{ opacity: 0, translateX: -width * 0.5 }}
-            animate={{ opacity: 1, translateX: 0 }}
-            transition={{ type: 'timing', duration: 400, delay: 500, easing: Easing.out(Easing.exp) }}
-            style={tw`flex-row items-center bg-gray-100 rounded-xl px-3 h-12 mb-1 border border-gray-200 ${touched.correo && !isCorreoValid ? 'border-red-400' : ''}`}
-          >
-            <Feather
-              name="mail"
-              size={20}
-              color={focused === 'correo' ? '#0140CD' : '#999'}
-            />
-            <TextInput
-              placeholder="Correo electrónico"
-              placeholderTextColor="#999"
-              keyboardType="email-address"
-              style={getInputStyles('correo')}
-              value={correo}
-              onChangeText={setCorreo}
-              onFocus={() => setFocused('correo')}
-              onBlur={() => handleBlur('correo')}
-              editable={!loading}
-            />
-          </MotiView>
+        <View style={tw`mb-5`}>
+          <Text style={tw`text-gray-700 mb-1`}>Contraseña</Text>
+          <TextInput
+            placeholder="Mínimo 8 caracteres"
+            secureTextEntry
+            value={contrasena}
+            onChangeText={setContrasena}
+            style={tw`border border-gray-300 rounded-lg p-3 text-base`}
+            editable={!loading}
+          />
+        </View>
 
-          {/* Contraseña input */}
-          <MotiView
-            from={{ opacity: 0, translateX: width * 0.5 }}
-            animate={{ opacity: 1, translateX: 0 }}
-            transition={{ type: 'timing', duration: 400, delay: 600, easing: Easing.out(Easing.exp) }}
-            style={tw`flex-row items-center bg-gray-100 rounded-xl px-3 h-12 mb-1 border border-gray-200 ${touched.contrasena && !isPasswordValid ? 'border-red-400' : ''}`}
-          >
-            <Feather
-              name="lock"
-              size={20}
-              color={focused === 'contrasena' ? '#0140CD' : '#999'}
-            />
-            <TextInput
-              placeholder="Contraseña"
-              placeholderTextColor="#999"
-              secureTextEntry
-              style={getInputStyles('contrasena')}
-              value={contrasena}
-              onChangeText={setContrasena}
-              onFocus={() => setFocused('contrasena')}
-              onBlur={() => handleBlur('contrasena')}
-              editable={!loading}
-            />
-          </MotiView>
+        {/* Checkbox for terms */}
+        <Pressable 
+          onPress={() => setAcceptTerms(!acceptTerms)} 
+          style={tw`flex-row items-center mb-5`}
+        >
+          <View style={tw`w-5 h-5 border border-gray-400 rounded mr-2 ${acceptTerms ? 'bg-[#0045cc]' : 'bg-white'}`}>
+            {acceptTerms && <Feather name="check" size={16} color="white" />}
+          </View>
+          <Text style={tw`text-gray-700`}>
+            Acepto los <Text style={tw`text-[#0045cc]`}>Términos y Condiciones</Text>
+          </Text>
+        </Pressable>
 
-          {/* Register button */}
-          <MotiView
-            from={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: 'timing', duration: 400, delay: 700 }}
-            style={tw`mt-3`}
-          >
-            <Pressable
-              onPress={handleRegister}
-              disabled={loading}
-              style={({ pressed }) => tw`bg-[#0140CD] border-2 border-[#0140CD] py-3.5 rounded-xl items-center ${pressed ? 'opacity-90' : ''}`}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={tw`text-white text-base font-semibold`}>Registrarse</Text>
-              )}
-            </Pressable>
-          </MotiView>
+        {/* Register button */}
+        <Pressable
+          onPress={handleRegister}
+          disabled={loading || !isFormValid}
+          style={tw`bg-[#0045cc] py-3 rounded-lg items-center mb-4 ${!isFormValid ? 'opacity-70' : ''}`}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={tw`text-white text-base font-semibold`}>Registrarse</Text>
+          )}
+        </Pressable>
 
-          {/* Back to login link */}
-          <Pressable
-            onPress={() => router.replace('/login')}
-            style={({ pressed }) => tw`mt-4 items-center ${pressed ? 'opacity-70' : ''}`}
-          >
-            <Text style={tw`text-[#0140CD] underline`}>¿Ya tienes cuenta? Inicia sesión</Text>
-          </Pressable>
-        </KeyboardAvoidingView>
-      </MotiView>
+        {/* Login link */}
+        <View style={tw`items-center`}>
+          <Text style={tw`text-gray-600`}>
+            ¿Ya tienes una cuenta? <Text onPress={() => router.replace('/login')} style={tw`text-[#0045cc]`}>Inicia sesión</Text>
+          </Text>
+        </View>
 
-      {/* Toasts */}
-      <AnimatePresence>
-        {success && (
-          <MotiView
-            from={{ opacity: 0, translateY: 80 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            exit={{ opacity: 0, translateY: 80 }}
-            transition={{ type: 'timing', duration: 300 }}
-            style={tw`absolute bottom-8 left-6 right-6 flex-row items-center p-3 rounded-xl bg-green-100`}
-          >
-            <Feather name="check-circle" size={20} color="#155724" />
-            <Text style={tw`ml-2 text-sm font-medium text-green-800`}>Registro exitoso</Text>
-          </MotiView>
-        )}
-      </AnimatePresence>
-      <AnimatePresence>
+        {/* Error message */}
         {!!error && (
-          <MotiView
-            from={{ opacity: 0, translateY: 80 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            exit={{ opacity: 0, translateY: 80 }}
-            transition={{ type: 'timing', duration: 300 }}
-            style={tw`absolute bottom-8 left-6 right-6 flex-row items-center p-3 rounded-xl bg-red-100`}
-          >
-            <Feather name="x-circle" size={20} color="#dc3545" />
-            <Text style={tw`ml-2 text-sm font-medium text-red-700`}>{error}</Text>
-          </MotiView>
+          <View style={tw`mt-4 bg-red-100 p-2 rounded`}>
+            <Text style={tw`text-red-600`}>{error}</Text>
+          </View>
         )}
-      </AnimatePresence>
-    </View>
+      </View>
+    </ScrollView>
   );
 }
