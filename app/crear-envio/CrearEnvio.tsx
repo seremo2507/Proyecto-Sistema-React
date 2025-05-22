@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -11,28 +11,30 @@ import {
   Platform, 
   BackHandler 
 } from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons, Feather } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { router } from 'expo-router';
-
+import tw from 'twrnc';
 
 import * as api from './api';
-import styles from './styles';
 import {
-  pasosLabels,
   tiposCarga,
   variedadOptions,
-  transporteIcons,
+  empaquetadoOptions,
+  tiposTransporte,
 } from './constants';
 
 type Coordenada = { latitude: number; longitude: number };
-type Carga = { tipo: string; variedad: string; empaquetado: string; cantidad: number; peso: number };
-type FormularioEnvio = {
-  origen: Coordenada;
-  destino: Coordenada;
+type Carga = { 
+  tipo: string; 
+  variedad: string; 
+  empaquetado: string; 
+  cantidad: number; 
+  peso: number;
+};
+
+type Particion = {
   fecha: string;
   horaRecogida: string;
   horaEntrega: string;
@@ -40,84 +42,78 @@ type FormularioEnvio = {
   instruccionesEntrega: string;
   cargas: Carga[];
   tipoTransporteLabel: string;
+  tipoTransporteId: number | null;
+};
+
+type FormularioEnvio = {
+  origen: Coordenada;
+  destino: Coordenada;
+  particiones: Particion[];
 };
 
 export default function CrearEnvio() {
   const navigation = useNavigation();
   
-  // Wizard state
-  const [paso, setPaso] = useState(0);
-  const [loading, setLoading] = useState(false);
-
   // Form state
   const [form, setForm] = useState<FormularioEnvio>({
     origen: { latitude: 0, longitude: 0 },
     destino: { latitude: 0, longitude: 0 },
-    fecha: '',
-    horaRecogida: '',
-    horaEntrega: '',
-    instruccionesRecogida: '',
-    instruccionesEntrega: '',
-    cargas: [{ tipo: '', variedad: '', empaquetado: '', cantidad: 0, peso: 0 }],
-    tipoTransporteLabel: '',
+    particiones: [{
+      fecha: '',
+      horaRecogida: '',
+      horaEntrega: '',
+      instruccionesRecogida: '',
+      instruccionesEntrega: '',
+      cargas: [{ tipo: '', variedad: '', empaquetado: '', cantidad: 0, peso: 0 }],
+      tipoTransporteLabel: '',
+      tipoTransporteId: null
+    }]
   });
-  const [tipoTransporteId, setTipoTransporteId] = useState<number | null>(null);
 
-  // Labels
+  // Labels y errores
   const [origenLabel, setOrigenLabel] = useState('');
   const [destinoLabel, setDestinoLabel] = useState('');
+  const [errores, setErrores] = useState<{[key: string]: string}>({});
+  const [loading, setLoading] = useState(false);
 
   // Data
   const [ubicaciones, setUbicaciones] = useState<any[]>([]);
-  const [routeCoords, setRouteCoords] = useState<Coordenada[]>([]);
 
   // UI flags
   const [showOrigenModal, setShowOrigenModal] = useState(false);
   const [showDestinoModal, setShowDestinoModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [selectedDate] = useState(new Date());
-  const [showTimeRec, setShowTimeRec] = useState(false);
-  const [selectedTimeRec] = useState(new Date());
-  const [showTimeEnt, setShowTimeEnt] = useState(false);
-  const [selectedTimeEnt] = useState(new Date());
+  const [datePickerIndex, setDatePickerIndex] = useState(0);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [timePickerData, setTimePickerData] = useState<{particionIndex: number, tipo: 'recogida' | 'entrega'}>({particionIndex: 0, tipo: 'recogida'});
+  const [selectedTime, setSelectedTime] = useState(new Date());
   const [showCargaModal, setShowCargaModal] = useState(false);
-  const [cargaModalIndex, setCargaModalIndex] = useState(0);
-  const [showVariedadModal, setShowVariedadModal] = useState(false);
-  const [variedadModalIndex, setVariedadModalIndex] = useState(0);
+  const [cargaModalData, setCargaModalData] = useState<{particionIndex: number, cargaIndex: number, tipo: 'tipo' | 'variedad' | 'empaquetado'}>({particionIndex: 0, cargaIndex: 0, tipo: 'tipo'});
+  const [showConfirmacion, setShowConfirmacion] = useState(false);
 
   // Configurar el manejador del botón de retroceso
   useEffect(() => {
     const backAction = () => {
-      const hasChanges =
-        origenLabel || 
-        destinoLabel || 
-        form.fecha || 
-        form.horaRecogida ||
-        form.horaEntrega || 
-        form.tipoTransporteLabel ||
-        form.instruccionesEntrega || 
-        form.instruccionesRecogida ||
-        form.cargas.some(c => c.tipo || c.variedad || c.peso || c.cantidad);
+      const hasChanges = origenLabel || destinoLabel || 
+        form.particiones.some(p => 
+          p.fecha || p.horaRecogida || p.horaEntrega || 
+          p.tipoTransporteLabel || p.instruccionesEntrega || 
+          p.instruccionesRecogida ||
+          p.cargas.some(c => c.tipo || c.variedad || c.peso || c.cantidad)
+        );
 
       if (hasChanges) {
         Alert.alert(
           '¿Salir sin guardar?',
           'Tienes cambios sin guardar. ¿Seguro que deseas salir?',
           [
-            {
-              text: 'Cancelar',
-              onPress: () => null,
-              style: 'cancel',
-            },
-            {
-              text: 'Sí, salir',
-              onPress: () => {
-                resetForm();
-                router.replace('../home');
-              },
-            },
-          ],
-          { cancelable: false }
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Sí, salir', onPress: () => {
+              resetForm();
+              router.replace('../home');
+            }}
+          ]
         );
         return true;
       } else {
@@ -127,18 +123,9 @@ export default function CrearEnvio() {
       }
     };
 
-    const backHandler = BackHandler.addEventListener(
-      'hardwareBackPress',
-      backAction
-    );
-
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
     return () => backHandler.remove();
-  }, [
-    form, 
-    origenLabel, 
-    destinoLabel, 
-    navigation
-  ]);
+  }, [form, origenLabel, destinoLabel]);
 
   // Fetch ubicaciones
   useEffect(() => {
@@ -150,98 +137,209 @@ export default function CrearEnvio() {
       });
   }, []);
 
-  // Fetch ruta on origen/destino change
-  useEffect(() => {
-    const { origen, destino } = form;
-    if (origen.latitude && destino.latitude) {
-      const start = `${origen.longitude},${origen.latitude}`;
-      const end = `${destino.longitude},${destino.latitude}`;
-      api.getRuta(start, end)
-        .then(data => {
-          const coords = data.coordinates.map(([lon, lat]: [number, number]) => ({ latitude: lat, longitude: lon }));
-          setRouteCoords(coords);
-        })
-        .catch(() => setRouteCoords([]));
-    } else {
-      setRouteCoords([]);
-    }
-  }, [form.origen, form.destino]);
+  // Handlers optimizados con useCallback
+  const limpiarError = useCallback((campo: string) => {
+    setErrores(prev => {
+      const nuevos = { ...prev };
+      delete nuevos[campo];
+      return nuevos;
+    });
+  }, []);
 
-  // Handlers
-  const handleChange = (key: keyof FormularioEnvio, value: any) => {
-    setForm(f => ({ ...f, [key]: value } as any));
-  };
+  const marcarError = useCallback((campo: string, mensaje: string) => {
+    setErrores(prev => ({ ...prev, [campo]: mensaje }));
+  }, []);
+
+  const updateParticion = useCallback((index: number, field: keyof Particion, value: any) => {
+    setForm(f => {
+      const particiones = [...f.particiones];
+      particiones[index] = { ...particiones[index], [field]: value };
+      return { ...f, particiones };
+    });
+    limpiarError(`particion_${index}_${field}`);
+  }, [limpiarError]);
+
+  const updateCarga = useCallback((particionIndex: number, cargaIndex: number, field: keyof Carga, value: any) => {
+    setForm(f => {
+      const particiones = [...f.particiones];
+      const cargas = [...particiones[particionIndex].cargas];
+      cargas[cargaIndex] = { ...cargas[cargaIndex], [field]: value };
+      particiones[particionIndex] = { ...particiones[particionIndex], cargas };
+      return { ...f, particiones };
+    });
+    limpiarError(`particion_${particionIndex}_carga_${cargaIndex}_${field}`);
+  }, [limpiarError]);
   
-  const updateCarga = (i: number, field: keyof Carga, value: any) => {
-    const cargas = [...form.cargas];
-    cargas[i] = { ...cargas[i], [field]: value };
-    setForm(f => ({ ...f, cargas }));
-  };
-  
-  const agregarCarga = () => setForm(f => ({
-    ...f,
-    cargas: [...f.cargas, { tipo: '', variedad: '', empaquetado: '', cantidad: 0, peso: 0 }]
-  }));
+  const agregarCarga = useCallback((particionIndex: number) => {
+    setForm(f => {
+      const particiones = [...f.particiones];
+      particiones[particionIndex].cargas.push({ tipo: '', variedad: '', empaquetado: '', cantidad: 0, peso: 0 });
+      return { ...f, particiones };
+    });
+  }, []);
+
+  const eliminarCarga = useCallback((particionIndex: number, cargaIndex: number) => {
+    setForm(f => {
+      const particiones = [...f.particiones];
+      if (particiones[particionIndex].cargas.length > 1) {
+        particiones[particionIndex].cargas.splice(cargaIndex, 1);
+      }
+      return { ...f, particiones };
+    });
+  }, []);
+
+  const agregarParticion = useCallback(() => {
+    setForm(f => ({
+      ...f,
+      particiones: [...f.particiones, {
+        fecha: '',
+        horaRecogida: '',
+        horaEntrega: '',
+        instruccionesRecogida: '',
+        instruccionesEntrega: '',
+        cargas: [{ tipo: '', variedad: '', empaquetado: '', cantidad: 0, peso: 0 }],
+        tipoTransporteLabel: '',
+        tipoTransporteId: null
+      }]
+    }));
+  }, []);
+
+  const eliminarParticion = useCallback((index: number) => {
+    if (form.particiones.length > 1) {
+      setForm(f => {
+        const particiones = [...f.particiones];
+        particiones.splice(index, 1);
+        return { ...f, particiones };
+      });
+    }
+  }, [form.particiones.length]);
 
   const resetForm = () => {
     setForm({
       origen: { latitude: 0, longitude: 0 },
       destino: { latitude: 0, longitude: 0 },
-      fecha: '',
-      horaRecogida: '',
-      horaEntrega: '',
-      instruccionesRecogida: '',
-      instruccionesEntrega: '',
-      cargas: [{ tipo: '', variedad: '', empaquetado: '', cantidad: 0, peso: 0 }],
-      tipoTransporteLabel: ''
+      particiones: [{
+        fecha: '',
+        horaRecogida: '',
+        horaEntrega: '',
+        instruccionesRecogida: '',
+        instruccionesEntrega: '',
+        cargas: [{ tipo: '', variedad: '', empaquetado: '', cantidad: 0, peso: 0 }],
+        tipoTransporteLabel: '',
+        tipoTransporteId: null
+      }]
     });
     setOrigenLabel('');
     setDestinoLabel('');
-    setTipoTransporteId(null);
-    setPaso(0);
-    setRouteCoords([]);
+    setErrores({});
+    setShowConfirmacion(false);
+  };
+
+  const validarFormulario = () => {
+    let esValido = true;
+    const nuevosErrores: {[key: string]: string} = {};
+
+    // Validar origen y destino
+    if (!origenLabel || !destinoLabel) {
+      nuevosErrores.ubicacion = 'Selecciona origen y destino';
+      esValido = false;
+    }
+
+    // Validar cada partición
+    form.particiones.forEach((particion, pIndex) => {
+      // Validar fecha
+      const fechaHoy = new Date().toISOString().split('T')[0];
+      if (!particion.fecha) {
+        nuevosErrores[`particion_${pIndex}_fecha`] = 'Selecciona fecha de recogida';
+        esValido = false;
+      } else if (particion.fecha < fechaHoy) {
+        nuevosErrores[`particion_${pIndex}_fecha`] = 'La fecha no puede ser anterior a hoy';
+        esValido = false;
+      }
+
+      // Validar horas
+      if (!particion.horaRecogida) {
+        nuevosErrores[`particion_${pIndex}_horaRecogida`] = 'Selecciona hora de recogida';
+        esValido = false;
+      }
+      if (!particion.horaEntrega) {
+        nuevosErrores[`particion_${pIndex}_horaEntrega`] = 'Selecciona hora de entrega';
+        esValido = false;
+      }
+
+      // Validar tipo de transporte
+      if (!particion.tipoTransporteId) {
+        nuevosErrores[`particion_${pIndex}_transporte`] = 'Selecciona tipo de transporte';
+        esValido = false;
+      }
+
+      // Validar cargas
+      particion.cargas.forEach((carga, cIndex) => {
+        if (!carga.tipo) {
+          nuevosErrores[`particion_${pIndex}_carga_${cIndex}_tipo`] = 'Selecciona tipo de carga';
+          esValido = false;
+        }
+        if (carga.cantidad <= 0) {
+          nuevosErrores[`particion_${pIndex}_carga_${cIndex}_cantidad`] = 'Cantidad debe ser mayor a 0';
+          esValido = false;
+        }
+        if (!carga.empaquetado) {
+          nuevosErrores[`particion_${pIndex}_carga_${cIndex}_empaquetado`] = 'Selecciona empaquetado';
+          esValido = false;
+        }
+        if (carga.peso <= 0) {
+          nuevosErrores[`particion_${pIndex}_carga_${cIndex}_peso`] = 'Peso debe ser mayor a 0';
+          esValido = false;
+        }
+      });
+    });
+
+    setErrores(nuevosErrores);
+    return esValido;
   };
 
   const crearEnvio = async () => {
-    setLoading(true);
-
-    if (
-      !origenLabel || !destinoLabel || !form.fecha ||
-      !form.horaRecogida || !form.horaEntrega || !tipoTransporteId
-    ) {
-      Alert.alert("Error", "Por favor completa todos los campos obligatorios.");
-      setLoading(false);
+    if (!validarFormulario()) {
+      Alert.alert('Error', 'Por favor corrige los errores marcados');
       return;
     }
 
-    const payload = {
-      loc: {
-        nombreOrigen: origenLabel,
-        coordenadasOrigen: [form.origen.latitude, form.origen.longitude],
-        nombreDestino: destinoLabel,
-        coordenadasDestino: [form.destino.latitude, form.destino.longitude],
-        segmentos: []
-      },
-      part: {
-        id_tipo_transporte: tipoTransporteId,
-        recogidaEntrega: {
-          fecha_recogida: form.fecha,
-          hora_recogida: form.horaRecogida,
-          hora_entrega: form.horaEntrega,
-          instrucciones_recogida: form.instruccionesRecogida,
-          instrucciones_entrega: form.instruccionesEntrega
-        },
-        cargas: form.cargas
-      }
-    };
-
-    console.log("Payload enviado a crearEnvio:", JSON.stringify(payload, null, 2));
+    setLoading(true);
 
     try {
-      await api.crearEnvio(payload);
-      Alert.alert('¡Éxito!', 'Envío creado correctamente');
-      resetForm();
-      router.replace('../home');
+      // Preparar payload para cada partición
+      for (const particion of form.particiones) {
+        const payload = {
+          loc: {
+            nombreOrigen: origenLabel,
+            coordenadasOrigen: [form.origen.latitude, form.origen.longitude],
+            nombreDestino: destinoLabel,
+            coordenadasDestino: [form.destino.latitude, form.destino.longitude],
+            segmentos: []
+          },
+          part: {
+            id_tipo_transporte: particion.tipoTransporteId,
+            recogidaEntrega: {
+              fecha_recogida: particion.fecha,
+              hora_recogida: particion.horaRecogida,
+              hora_entrega: particion.horaEntrega,
+              instrucciones_recogida: particion.instruccionesRecogida,
+              instrucciones_entrega: particion.instruccionesEntrega
+            },
+            cargas: particion.cargas.map(carga => ({
+              tipo: carga.tipo,
+              variedad: carga.variedad,
+              empaquetado: carga.empaquetado,
+              cantidad: carga.cantidad,
+              peso: carga.peso
+            }))
+          }
+        };
+
+        await api.crearEnvio(payload);
+      }
+
+      setShowConfirmacion(true);
     } catch (e: unknown) {
       console.error("Error al crear el envío:", e);
       const msg = e instanceof Error ? e.message : String(e);
@@ -250,340 +348,545 @@ export default function CrearEnvio() {
       setLoading(false);
     }
   };
-  // Step components
-  const PasoUbicacion = () => {
-    const origenes = ubicaciones;
-    const destinosUnicos = ubicaciones;
-    return (
-    <View style={{ alignItems: 'center' }}>
-      <Text style={styles.labelWhite}>Origen:</Text>
-      <Pressable style={styles.inputWrapper} onPress={() => setShowOrigenModal(true)}>
-        <Feather name="map-pin" size={20} color="#999" />
-        <Text style={styles.input}>{origenLabel || 'Selecciona origen'}</Text>
-      </Pressable>
-      <Text style={styles.labelWhite}>Destino:</Text>
-      <Pressable style={styles.inputWrapper} onPress={() => setShowDestinoModal(true)}>
-        <Feather name="map" size={20} color="#999" />
-        <Text style={styles.input}>{destinoLabel || 'Selecciona destino'}</Text>
-      </Pressable>
-      <MapView style={styles.map} initialRegion={{
-        latitude: form.origen.latitude && form.destino.latitude ? (form.origen.latitude + form.destino.latitude) / 2 : -17.78,
-        longitude: form.origen.longitude && form.destino.longitude ? (form.origen.longitude + form.destino.longitude) / 2 : -63.18,
-        latitudeDelta: 0.1,
-        longitudeDelta: 0.1,
-      }}>
-        {form.origen.latitude !== 0 && <Marker coordinate={form.origen} title={origenLabel} />}
-        {form.destino.latitude !== 0 && <Marker coordinate={form.destino} pinColor="green" title={destinoLabel} />}
-        {routeCoords.length > 0 && <Polyline coordinates={routeCoords} strokeColor="#fff" strokeWidth={4} />}
-      </MapView>
-      {/* Origen Modal */}
-      <Modal visible={showOrigenModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Elige Origen</Text>
-            {origenes.map(u => (
-              <Pressable
-                key={u._id}
-                style={styles.modalOption}
-                onPress={() => {
-                  handleChange('origen', { latitude: u.coordenadasOrigen[0], longitude: u.coordenadasOrigen[1] });
-                  setOrigenLabel(u.nombreOrigen);
 
-                  const destinoCoincidente = ubicaciones.find(d => d.nombreDestino === u.nombreOrigen);
-                  if (destinoCoincidente) {
-                    handleChange('destino', { latitude: destinoCoincidente.coordenadasDestino[0], longitude: destinoCoincidente.coordenadasDestino[1] });
-                    setDestinoLabel(destinoCoincidente.nombreDestino);
-                  }
-                  setShowOrigenModal(false);
-                }}>
-                <Text style={styles.modalOptionText}>{u.nombreOrigen}</Text>
-              </Pressable>
-            ))}
-            <Pressable style={styles.modalCancelBtn} onPress={() => setShowOrigenModal(false)}>
-              <Text style={styles.modalCancelText}>Cancelar</Text>
-            </Pressable>
-          </View>
+
+
+  // Vista de confirmación
+  const VistaConfirmacion = () => (
+    <View style={tw`flex-1 justify-center items-center p-6 bg-gray-50`}>
+      <View style={tw`bg-white rounded-lg p-8 items-center shadow-lg w-full max-w-sm`}>
+        <Ionicons name="checkmark-circle" size={80} color="#10B981" />
+        <Text style={tw`text-gray-800 text-2xl font-bold mt-4 mb-2 text-center`}>
+          ¡Envío Creado!
+        </Text>
+        <Text style={tw`text-gray-600 text-lg mb-6 text-center`}>
+          Tu envío ha sido registrado exitosamente
+        </Text>
+        
+        <View style={tw`mb-6 w-full`}>
+          <Text style={tw`text-gray-700 text-center mb-1`}>
+            Recogida en {origenLabel}
+          </Text>
+          <Text style={tw`text-gray-700 text-center`}>
+            Entrega en {destinoLabel}
+          </Text>
         </View>
-      </Modal>
-      {/* Destino Modal */}
-      <Modal visible={showDestinoModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Elige Destino</Text>
-            {destinosUnicos.map(u => (
-              <Pressable
-                key={u._id}
-                style={styles.modalOption}
-                onPress={() => {
-                  handleChange('destino', { latitude: u.coordenadasDestino[0], longitude: u.coordenadasDestino[1] });
-                  setDestinoLabel(u.nombreDestino);
-                  setShowDestinoModal(false);
-                }}>
-                <Text style={styles.modalOptionText}>{u.nombreDestino}</Text>
-              </Pressable>
-            ))}
-            <Pressable style={styles.modalCancelBtn} onPress={() => setShowDestinoModal(false)}>
-              <Text style={styles.modalCancelText}>Cancelar</Text>
-            </Pressable>
-          </View>
+        
+        <View style={tw`flex-row w-full`}>
+          <Pressable 
+            style={tw`bg-gray-100 rounded-lg px-4 py-3 mr-2 flex-1`}
+            onPress={() => {
+              resetForm();
+              router.replace('../home');
+            }}
+          >
+            <Text style={tw`text-gray-700 font-semibold text-center`}>Volver al Inicio</Text>
+          </Pressable>
+          
+          <Pressable 
+            style={tw`bg-blue-600 rounded-lg px-4 py-3 ml-2 flex-1`}
+            onPress={() => {
+              resetForm();
+            }}
+          >
+            <Text style={tw`text-white font-semibold text-center`}>Nuevo Envío</Text>
+          </Pressable>
         </View>
-      </Modal>
+      </View>
     </View>
   );
-  };
 
-  const PasoParticion = () => (
-    <View style={styles.card}>
-      <Text style={styles.cardTitleWhite}>Partición</Text>
-      <Text style={styles.labelWhite}>Fecha</Text>
-      <Pressable style={styles.inputWrapper} onPress={() => setShowDatePicker(true)}>
-        <Feather name="calendar" size={20} color="#999" />
-        <Text style={styles.input}>{form.fecha || 'YYYY-MM-DD'}</Text>
-      </Pressable>
+  if (showConfirmacion) {
+    return <VistaConfirmacion />;
+  }
+
+  return (
+    <View style={tw`flex-1 bg-gray-50 pt-${Platform.OS === 'ios' ? '12' : '8'}`}>
+      <ScrollView style={tw`flex-1`} showsVerticalScrollIndicator={false}>
+        <View style={tw`p-4`}>
+          
+          {/* Origen y destino del envío */}
+          <View style={tw`bg-white rounded-lg p-4 mb-4 shadow-sm`}>
+            <Text style={tw`text-lg font-semibold text-gray-800 mb-4`}>
+              Origen y destino del envío
+            </Text>
+            
+            <View style={tw`mb-4`}>
+              <Text style={tw`text-gray-700 mb-2`}>Origen</Text>
+              <Pressable 
+                style={tw`border bg-white border-l-4 border-l-blue-500 rounded-lg p-4 flex-row items-center ${errores.ubicacion ? 'border-red-500' : ''}`}
+                onPress={() => {
+                  setShowOrigenModal(true);
+                  limpiarError('ubicacion');
+                }}
+              >
+                <Ionicons name="location-outline" size={20} color="#9CA3AF" />
+                <Text style={tw`${origenLabel ? 'text-gray-800' : 'text-gray-400'} flex-1 ml-3 text-base`}>
+                  {origenLabel || 'Seleccionar origen'}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
+              </Pressable>
+            </View>
+
+            <View style={tw`mb-4`}>
+              <Text style={tw`text-gray-700 mb-2`}>Destino</Text>
+              <Pressable 
+                style={tw`border bg-white border-l-4 border-l-blue-500 rounded-lg p-4 flex-row items-center`}
+                onPress={() => setShowDestinoModal(true)}
+              >
+                <Ionicons name="location-outline" size={20} color="#9CA3AF" />
+                <Text style={tw`${destinoLabel ? 'text-gray-800' : 'text-gray-400'} flex-1 ml-3 text-base`}>
+                  {destinoLabel || 'Seleccionar destino'}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
+              </Pressable>
+            </View>
+
+            <View style={tw`bg-blue-50 p-3 rounded-lg flex-row items-center`}>
+              <Ionicons name="information-circle" size={20} color="#3B82F6" />
+              <Text style={tw`text-blue-700 ml-2 text-sm flex-1`}>
+                Añadir punto de recogida o entrega
+              </Text>
+            </View>
+          </View>
+
+          {/* Particiones */}
+          {form.particiones.map((particion, pIndex) => (
+            <View key={pIndex}>
+              {/* Partición de envío */}
+              <View style={tw`bg-white rounded-lg p-4 mb-4 shadow-sm`}>
+                <Text style={tw`text-lg font-semibold text-gray-800 mb-4`}>
+                  Partición de envío
+                </Text>
+                
+                {/* Recogida y entrega */}
+                <Text style={tw`text-gray-700 font-medium mb-3`}>Recogida y entrega</Text>
+                
+                <View style={tw`mb-4`}>
+                  <Text style={tw`text-gray-700 mb-2`}>Día</Text>
+                  <Pressable 
+                    style={tw`border bg-white border-l-4 border-l-blue-500 rounded-lg p-4 flex-row items-center ${errores[`particion_${pIndex}_fecha`] ? 'border-red-500' : ''}`}
+                    onPress={() => {
+                      setDatePickerIndex(pIndex);
+                      setShowDatePicker(true);
+                      limpiarError(`particion_${pIndex}_fecha`);
+                    }}
+                  >
+                    <Ionicons name="calendar-outline" size={20} color="#9CA3AF" />
+                    <Text style={tw`${particion.fecha ? 'text-gray-800' : 'text-gray-400'} flex-1 ml-3 text-base`}>
+                      {particion.fecha || 'DD/MM/AAAA'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
+                  </Pressable>
+                </View>
+
+                <View style={tw`flex-row mb-4`}>
+                  <View style={tw`flex-1 mr-2`}>
+                    <Text style={tw`text-gray-700 mb-2`}>Hora de recogida</Text>
+                    <Pressable 
+                      style={tw`border bg-white border-l-4 border-l-blue-500 rounded-lg p-4 flex-row items-center ${errores[`particion_${pIndex}_horaRecogida`] ? 'border-red-500' : ''}`}
+                      onPress={() => {
+                        setTimePickerData({ particionIndex: pIndex, tipo: 'recogida' });
+                        setShowTimePicker(true);
+                        limpiarError(`particion_${pIndex}_horaRecogida`);
+                      }}
+                    >
+                      <Ionicons name="time-outline" size={20} color="#9CA3AF" />
+                      <Text style={tw`${particion.horaRecogida ? 'text-gray-800' : 'text-gray-400'} flex-1 ml-3 text-base`}>
+                        {particion.horaRecogida || 'Seleccionar hora'}
+                      </Text>
+                      <Ionicons name="chevron-down" size={16} color="#9CA3AF" />
+                    </Pressable>
+                  </View>
+                  
+                  <View style={tw`flex-1 ml-2`}>
+                    <Text style={tw`text-gray-700 mb-2`}>Hora de entrega</Text>
+                    <Pressable 
+                      style={tw`border bg-white border-l-4 border-l-blue-500 rounded-lg p-4 flex-row items-center ${errores[`particion_${pIndex}_horaEntrega`] ? 'border-red-500' : ''}`}
+                      onPress={() => {
+                        setTimePickerData({ particionIndex: pIndex, tipo: 'entrega' });
+                        setShowTimePicker(true);
+                        limpiarError(`particion_${pIndex}_horaEntrega`);
+                      }}
+                    >
+                      <Ionicons name="time-outline" size={20} color="#9CA3AF" />
+                      <Text style={tw`${particion.horaEntrega ? 'text-gray-800' : 'text-gray-400'} flex-1 ml-3 text-base`}>
+                        {particion.horaEntrega || 'Seleccionar hora'}
+                      </Text>
+                      <Ionicons name="chevron-down" size={16} color="#9CA3AF" />
+                    </Pressable>
+                  </View>
+                </View>
+
+                <View style={tw`mb-4`}>
+                  <Text style={tw`text-gray-700 mb-2`}>Información (Opcional)</Text>
+                  <TextInput
+                    style={tw`border border-blue-300 bg-white border-l-4 border-l-blue-500 rounded-lg p-4 text-gray-700 min-h-20`}
+                    placeholder="Añadir nota corporativa responsable para el transportista"
+                    placeholderTextColor="#9CA3AF"
+                    value={particion.instruccionesRecogida}
+                    onChangeText={(text) => {
+                      setForm(prevForm => {
+                        const newParticiones = [...prevForm.particiones];
+                        newParticiones[pIndex] = { ...newParticiones[pIndex], instruccionesRecogida: text };
+                        return { ...prevForm, particiones: newParticiones };
+                      });
+                    }}
+                    multiline
+                    textAlignVertical="top"
+                    numberOfLines={3}
+                    blurOnSubmit={false}
+                    returnKeyType="default"
+                  />
+                </View>
+
+                <View style={tw`mb-4`}>
+                  <Text style={tw`text-gray-700 mb-2`}>Instrucciones de punto de entrega</Text>
+                  <TextInput
+                    style={tw`border border-gray-300 bg-white border-l-4 border-l-blue-500 rounded-lg p-4 text-gray-700 min-h-20`}
+                    placeholder="Añadir instrucciones especiales para la entrega"
+                    placeholderTextColor="#9CA3AF"
+                    value={particion.instruccionesEntrega}
+                    onChangeText={(text) => {
+                      setForm(prevForm => {
+                        const newParticiones = [...prevForm.particiones];
+                        newParticiones[pIndex] = { ...newParticiones[pIndex], instruccionesEntrega: text };
+                        return { ...prevForm, particiones: newParticiones };
+                      });
+                    }}
+                    multiline
+                    textAlignVertical="top"
+                    numberOfLines={3}
+                    blurOnSubmit={false}
+                    returnKeyType="default"
+                  />
+                </View>
+              </View>
+
+              {/* Detalles de la carga */}
+              <View style={tw`bg-white rounded-lg p-4 mb-4 shadow-sm`}>
+                <Text style={tw`text-lg font-semibold text-gray-800 mb-4`}>
+                  Detalles de la carga
+                </Text>
+                
+                {particion.cargas.map((carga, cIndex) => (
+                  <View key={cIndex} style={tw`${cIndex > 0 ? 'mt-4 pt-4 border-t border-gray-200' : ''}`}>
+                    <View style={tw`mb-4`}>
+                      <Text style={tw`text-gray-700 mb-2`}>Tipo de carga</Text>
+                      <Pressable 
+                        style={tw`border bg-white border-l-4 border-l-blue-500 rounded-lg p-4 flex-row items-center ${errores[`particion_${pIndex}_carga_${cIndex}_tipo`] ? 'border-red-500' : ''}`}
+                        onPress={() => {
+                          setCargaModalData({ particionIndex: pIndex, cargaIndex: cIndex, tipo: 'tipo' });
+                          setShowCargaModal(true);
+                          limpiarError(`particion_${pIndex}_carga_${cIndex}_tipo`);
+                        }}
+                      >
+                        <Ionicons name="layers-outline" size={20} color="#9CA3AF" />
+                        <Text style={tw`${carga.tipo ? 'text-gray-800' : 'text-gray-400'} flex-1 ml-3 text-base`}>
+                          {carga.tipo || 'Seleccionar tipo de carga'}
+                        </Text>
+                        <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
+                      </Pressable>
+                    </View>
+
+                    <View style={tw`flex-row mb-4`}>
+                      <View style={tw`flex-1 mr-2`}>
+                        <Text style={tw`text-gray-700 mb-2`}>Cantidad</Text>
+                        <View style={tw`border bg-white border-l-4 border-l-blue-500 rounded-lg flex-row items-center ${errores[`particion_${pIndex}_carga_${cIndex}_cantidad`] ? 'border-red-500' : ''}`}>
+                          <Pressable 
+                            onPress={() => updateCarga(pIndex, cIndex, 'cantidad', Math.max(0, carga.cantidad - 1))} 
+                            style={tw`p-3 bg-gray-100 rounded-lg mx-1`}
+                          >
+                            <Text style={tw`text-gray-600 text-lg font-bold`}>−</Text>
+                          </Pressable>
+                          
+                          <View style={tw`flex-1 items-center`}>
+                            <Text style={tw`text-gray-800 text-lg font-semibold`}>{carga.cantidad}</Text>
+                          </View>
+                          
+                          <Pressable 
+                            onPress={() => updateCarga(pIndex, cIndex, 'cantidad', carga.cantidad + 1)} 
+                            style={tw`p-3 bg-gray-100 rounded-lg mx-1`}
+                          >
+                            <Text style={tw`text-gray-600 text-lg font-bold`}>+</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                      
+                      <View style={tw`flex-1 ml-2`}>
+                        <Text style={tw`text-gray-700 mb-2`}>Empaquetado</Text>
+                        <Pressable 
+                          style={tw`border bg-white border-l-4 border-l-blue-500 rounded-lg p-4 flex-row items-center ${errores[`particion_${pIndex}_carga_${cIndex}_empaquetado`] ? 'border-red-500' : ''}`}
+                          onPress={() => {
+                            setCargaModalData({ particionIndex: pIndex, cargaIndex: cIndex, tipo: 'empaquetado' });
+                            setShowCargaModal(true);
+                            limpiarError(`particion_${pIndex}_carga_${cIndex}_empaquetado`);
+                          }}
+                        >
+                          <Ionicons name="cube-outline" size={20} color="#9CA3AF" />
+                          <Text style={tw`${carga.empaquetado ? 'text-gray-800' : 'text-gray-400'} flex-1 ml-3 text-sm`}>
+                            {carga.empaquetado || 'Seleccionar empaquetado'}
+                          </Text>
+                          <Ionicons name="chevron-down" size={16} color="#9CA3AF" />
+                        </Pressable>
+                      </View>
+                    </View>
+
+                    <View style={tw`mb-4`}>
+                      <Text style={tw`text-gray-700 mb-2`}>Peso</Text>
+                      <View style={tw`border bg-white border-l-4 border-l-blue-500 rounded-lg flex-row items-center ${errores[`particion_${pIndex}_carga_${cIndex}_peso`] ? 'border-red-500' : ''}`}>
+                        <Pressable 
+                          onPress={() => updateCarga(pIndex, cIndex, 'peso', Math.max(0, carga.peso - 1))} 
+                          style={tw`p-3 bg-gray-100 rounded-lg mx-1`}
+                        >
+                          <Text style={tw`text-gray-600 text-lg font-bold`}>−</Text>
+                        </Pressable>
+                        
+                        <View style={tw`flex-1 items-center`}>
+                          <Text style={tw`text-gray-800 text-lg font-semibold`}>{carga.peso} kg</Text>
+                        </View>
+                        
+                        <Pressable 
+                          onPress={() => updateCarga(pIndex, cIndex, 'peso', carga.peso + 1)} 
+                          style={tw`p-3 bg-gray-100 rounded-lg mx-1`}
+                        >
+                          <Text style={tw`text-gray-600 text-lg font-bold`}>+</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+
+                    {particion.cargas.length > 1 && (
+                      <Pressable 
+                        style={tw`self-end`}
+                        onPress={() => eliminarCarga(pIndex, cIndex)}
+                      >
+                        <Text style={tw`text-red-500 text-sm`}>Eliminar carga</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                ))}
+                
+                <Pressable 
+                  style={tw`bg-blue-50 p-3 rounded-lg flex-row items-center justify-center mt-4`}
+                  onPress={() => agregarCarga(pIndex)}
+                >
+                  <Ionicons name="add" size={20} color="#3B82F6" />
+                  <Text style={tw`text-blue-600 font-medium ml-2`}>Añadir otra carga</Text>
+                </Pressable>
+              </View>
+
+              {/* Selección del tipo de transporte */}
+              <View style={tw`bg-white rounded-lg p-4 mb-4 shadow-sm`}>
+                <Text style={tw`text-lg font-semibold text-gray-800 mb-4`}>
+                  Selección del tipo de transporte
+                </Text>
+                
+                <View style={tw`flex-row justify-between mb-4 ${errores[`particion_${pIndex}_transporte`] ? 'border border-red-500 rounded-lg p-2' : ''}`}>
+                  {tiposTransporte.map((tipo) => (
+                    <Pressable 
+                      key={tipo.id}
+                      style={tw`flex-1 items-center p-4 mx-1 rounded-lg ${particion.tipoTransporteId === tipo.id ? 'border-2 border-blue-500' : 'bg-gray-50 border border-gray-300'}`}
+                      onPress={() => {
+                        updateParticion(pIndex, 'tipoTransporteId', tipo.id);
+                        updateParticion(pIndex, 'tipoTransporteLabel', tipo.nombre);
+                        limpiarError(`particion_${pIndex}_transporte`);
+                      }}
+                    >
+                      <View style={tw`w-12 h-12 bg-gray-300 rounded-lg mb-2 items-center justify-center`}>
+                        <Feather 
+                          name="truck" 
+                          size={24} 
+                          color={particion.tipoTransporteId === tipo.id ? '#3B82F6' : '#9CA3AF'} 
+                        />
+                      </View>
+                      <Text style={tw`${particion.tipoTransporteId === tipo.id ? 'text-blue-600' : 'text-gray-600'} font-medium text-center text-sm`}>
+                        {tipo.nombre}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                
+                {particion.tipoTransporteLabel && (
+                  <Text style={tw`text-gray-600 text-sm text-center`}>
+                    {tiposTransporte.find(t => t.id === particion.tipoTransporteId)?.descripcion}
+                  </Text>
+                )}
+              </View>
+            </View>
+          ))}
+
+          {/* Botón añadir otra partición */}
+          <Pressable 
+            style={tw`bg-blue-50 p-4 rounded-lg flex-row items-center justify-center mb-4`}
+            onPress={agregarParticion}
+          >
+            <Ionicons name="add" size={20} color="#3B82F6" />
+            <Text style={tw`text-blue-600 font-medium ml-2`}>Añadir otra partición de envío</Text>
+          </Pressable>
+
+          {/* Botón confirmar envío */}
+          <Pressable 
+            style={tw`bg-blue-600 p-4 rounded-lg items-center mb-6 ${loading ? 'opacity-50' : ''}`}
+            onPress={crearEnvio}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={tw`text-white font-semibold text-lg`}>Confirmar Envío</Text>
+            )}
+          </Pressable>
+        </View>
+      </ScrollView>
+
+      {/* Modales */}
+      
+      {/* Modal Origen */}
+      <Modal visible={showOrigenModal} transparent animationType="fade">
+        <View style={tw`flex-1 bg-black bg-opacity-50 justify-center items-center`}>
+          <View style={tw`bg-white rounded-lg w-4/5 p-4 max-h-96`}>
+            <Text style={tw`text-lg font-bold mb-4 text-center`}>Seleccionar Origen</Text>
+            <ScrollView style={tw`max-h-60`}>
+              {ubicaciones.map(u => (
+                <Pressable
+                  key={u._id}
+                  style={tw`p-3 border-b border-gray-200`}
+                  onPress={() => {
+                    // Establecer origen y destino en una sola operación
+                    setForm(f => ({ 
+                      ...f, 
+                      origen: { 
+                        latitude: u.coordenadasOrigen[0], 
+                        longitude: u.coordenadasOrigen[1] 
+                      },
+                      destino: { 
+                        latitude: u.coordenadasDestino[0], 
+                        longitude: u.coordenadasDestino[1] 
+                      }
+                    }));
+                    
+                    setOrigenLabel(u.nombreOrigen);
+                    setDestinoLabel(u.nombreDestino);
+                    
+                    limpiarError('ubicacion');
+                    setShowOrigenModal(false);
+                  }}
+                >
+                  <Text style={tw`text-gray-800`}>{u.nombreOrigen}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Pressable 
+              style={tw`mt-4 bg-gray-200 rounded-lg p-3`}
+              onPress={() => setShowOrigenModal(false)}
+            >
+              <Text style={tw`text-gray-700 font-medium text-center`}>Cancelar</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal Destino */}
+      <Modal visible={showDestinoModal} transparent animationType="fade">
+        <View style={tw`flex-1 bg-black bg-opacity-50 justify-center items-center`}>
+          <View style={tw`bg-white rounded-lg w-4/5 p-4 max-h-96`}>
+            <Text style={tw`text-lg font-bold mb-4 text-center`}>Seleccionar Destino</Text>
+            <ScrollView style={tw`max-h-60`}>
+              {ubicaciones.map(u => (
+                <Pressable
+                  key={u._id}
+                  style={tw`p-3 border-b border-gray-200`}
+                  onPress={() => {
+                    setForm(f => ({ ...f, destino: { latitude: u.coordenadasDestino[0], longitude: u.coordenadasDestino[1] } }));
+                    setDestinoLabel(u.nombreDestino);
+                    setShowDestinoModal(false);
+                  }}
+                >
+                  <Text style={tw`text-gray-800`}>{u.nombreDestino}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Pressable 
+              style={tw`mt-4 bg-gray-200 rounded-lg p-3`}
+              onPress={() => setShowDestinoModal(false)}
+            >
+              <Text style={tw`text-gray-700 font-medium text-center`}>Cancelar</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Selección de Carga */}
+      <Modal visible={showCargaModal} transparent animationType="fade">
+        <View style={tw`flex-1 bg-black bg-opacity-50 justify-center items-center`}>
+          <View style={tw`bg-white rounded-lg w-4/5 p-4 max-h-96`}>
+            <Text style={tw`text-lg font-bold mb-4 text-center`}>
+              Seleccionar {cargaModalData.tipo === 'tipo' ? 'Tipo de Carga' : 
+                          cargaModalData.tipo === 'variedad' ? 'Variedad' : 'Empaquetado'}
+            </Text>
+            <ScrollView style={tw`max-h-60`}>
+              {(cargaModalData.tipo === 'tipo' ? tiposCarga : 
+                cargaModalData.tipo === 'variedad' ? variedadOptions : empaquetadoOptions
+               ).map((opcion, idx) => (
+                <Pressable
+                  key={idx}
+                  style={tw`p-3 border-b border-gray-200`}
+                  onPress={() => {
+                    updateCarga(cargaModalData.particionIndex, cargaModalData.cargaIndex, cargaModalData.tipo, opcion);
+                    setShowCargaModal(false);
+                  }}
+                >
+                  <Text style={tw`text-gray-800`}>{opcion}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Pressable 
+              style={tw`mt-4 bg-gray-200 rounded-lg p-3`}
+              onPress={() => setShowCargaModal(false)}
+            >
+              <Text style={tw`text-gray-700 font-medium text-center`}>Cancelar</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Date Picker */}
       {showDatePicker && (
         <DateTimePicker
           value={selectedDate}
           mode="date"
           display="default"
-          onChange={(_, d) => {
+          minimumDate={new Date()}
+          onChange={(_, date) => {
             setShowDatePicker(false);
-            if (d) handleChange('fecha', d.toISOString().slice(0, 10));
-          }}
-        />
-      )}
-      <Text style={styles.labelWhite}>Hora Recogida</Text>
-      <Pressable style={styles.inputWrapper} onPress={() => setShowTimeRec(true)}>
-        <Feather name="clock" size={20} color="#999" />
-        <Text style={styles.input}>{form.horaRecogida || 'HH:MM'}</Text>
-      </Pressable>
-      {showTimeRec && (
-        <DateTimePicker
-          value={selectedTimeRec}
-          mode="time"
-          display="default"
-          is24Hour
-          onChange={(_, d) => {
-            setShowTimeRec(false);
-            if (d) {
-              const hh = d.getHours().toString().padStart(2, '0');
-              const mm = d.getMinutes().toString().padStart(2, '0');
-              handleChange('horaRecogida', `${hh}:${mm}`);
+            if (date) {
+              updateParticion(datePickerIndex, 'fecha', date.toISOString().slice(0, 10));
             }
           }}
         />
       )}
-      <Text style={styles.labelWhite}>Hora Entrega</Text>
-      <Pressable style={styles.inputWrapper} onPress={() => setShowTimeEnt(true)}>
-        <Feather name="clock" size={20} color="#999" />
-        <Text style={styles.input}>{form.horaEntrega || 'HH:MM'}</Text>
-      </Pressable>
-      {showTimeEnt && (
+
+      {/* Time Picker */}
+      {showTimePicker && (
         <DateTimePicker
-          value={selectedTimeEnt}
+          value={selectedTime}
           mode="time"
           display="default"
           is24Hour
-          onChange={(_, d) => {
-            setShowTimeEnt(false);
-            if (d) {
-              const hh = d.getHours().toString().padStart(2, '0');
-              const mm = d.getMinutes().toString().padStart(2, '0');
-              handleChange('horaEntrega', `${hh}:${mm}`);
+          onChange={(_, time) => {
+            setShowTimePicker(false);
+            if (time) {
+              const hh = time.getHours().toString().padStart(2, '0');
+              const mm = time.getMinutes().toString().padStart(2, '0');
+              updateParticion(
+                timePickerData.particionIndex, 
+                timePickerData.tipo === 'recogida' ? 'horaRecogida' : 'horaEntrega', 
+                `${hh}:${mm}`
+              );
             }
           }}
         />
       )}
-      <Text style={styles.labelWhite}>Instr. Recogida</Text>
-      <View style={styles.inputWrapper}>
-        <Feather name="edit" size={20} color="#999" />
-        <TextInput
-          style={styles.textarea}
-          placeholder="Opcional..."
-          placeholderTextColor="#999"
-          value={form.instruccionesRecogida}
-          onChangeText={t => handleChange('instruccionesRecogida', t)}
-          multiline
-        />
-      </View>
-      <Text style={styles.labelWhite}>Instr. Entrega</Text>
-      <View style={styles.inputWrapper}>
-        <Feather name="edit" size={20} color="#999" />
-        <TextInput
-          style={styles.textarea}
-          placeholder="Opcional..."
-          placeholderTextColor="#999"
-          value={form.instruccionesEntrega}
-          onChangeText={t => handleChange('instruccionesEntrega', t)}
-          multiline
-        />
-      </View>
     </View>
-  );
-
-  const PasoCargas = () => (
-    <View style={styles.card}>
-      <Text style={styles.cardTitleWhite}>Cargas</Text>
-      {form.cargas.map((c, i) => (
-        <View key={i} style={styles.cardSection}>
-          <Text style={styles.labelWhite}>Tipo</Text>
-          <Pressable style={styles.inputWrapper} onPress={() => { setCargaModalIndex(i); setShowCargaModal(true); }}>
-            <Feather name="layers" size={20} color="#999" />
-            <Text style={styles.input}>{c.tipo || 'Seleccionar'}</Text>
-          </Pressable>
-          <Text style={styles.labelWhite}>Variedad</Text>
-          <Pressable style={styles.inputWrapper} onPress={() => { setVariedadModalIndex(i); setShowVariedadModal(true); }}>
-            <Feather name="tag" size={20} color="#999" />
-            <Text style={styles.input}>{c.variedad || 'Seleccionar'}</Text>
-          </Pressable>
-          <View style={styles.twoColumns}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.labelWhite}>Cantidad</Text>
-              <View style={styles.counterRow}>
-                <Pressable onPress={() => updateCarga(i, 'cantidad', Math.max(0, c.cantidad - 1))} style={styles.counterBtn}>
-                  <Text style={styles.counterText}>—</Text>
-                </Pressable>
-                <Text style={styles.counterValue}>{c.cantidad}</Text>
-                <Pressable onPress={() => updateCarga(i, 'cantidad', c.cantidad + 1)} style={styles.counterBtn}>
-                  <Text style={styles.counterText}>+</Text>
-                </Pressable>
-              </View>
-            </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.labelWhite}>Peso (kg)</Text>
-              <View style={styles.counterRow}>
-                <Pressable onPress={() => updateCarga(i, 'peso', Math.max(0, c.peso - 1))} style={styles.counterBtn}>
-                  <Text style={styles.counterText}>—</Text>
-                </Pressable>
-                <Text style={styles.counterValue}>{c.peso}</Text>
-                <Pressable onPress={() => updateCarga(i, 'peso', c.peso + 1)} style={styles.counterBtn}>
-                  <Text style={styles.counterText}>+</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </View>
-      ))}
-      <Pressable style={styles.buttonAdd} onPress={agregarCarga}>
-        <Ionicons name="add-circle" size={20} color="#fff" />
-        <Text style={styles.buttonAddText}>Añadir otra carga</Text>
-      </Pressable>
-      {/* Carga Modal */}
-      <Modal transparent visible={showCargaModal} animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            {tiposCarga.map((t, idx) => (
-              <Pressable key={idx} style={styles.modalOption} onPress={() => { updateCarga(cargaModalIndex, 'tipo', t); setShowCargaModal(false); }}>
-                <Text style={styles.modalOptionText}>{t}</Text>
-              </Pressable>
-            ))}
-            <Pressable style={styles.modalCancelBtn} onPress={() => setShowCargaModal(false)}>
-              <Text style={styles.modalCancelText}>Cancelar</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-      {/* Variedad Modal */}
-      <Modal transparent visible={showVariedadModal} animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            {variedadOptions.map((v, idx) => (
-              <Pressable key={idx} style={styles.modalOption} onPress={() => { updateCarga(variedadModalIndex, 'variedad', v); setShowVariedadModal(false); }}>
-                <Text style={styles.modalOptionText}>{v}</Text>
-              </Pressable>
-            ))}
-            <Pressable style={styles.modalCancelBtn} onPress={() => setShowVariedadModal(false)}>
-              <Text style={styles.modalCancelText}>Cancelar</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-    </View>
-  );
-
-  const PasoTransporte = () => (
-    <View style={styles.card}>
-      <Text style={styles.cardTitleWhite}>Transporte</Text>
-      <View style={styles.transportRow}>
-        {Object.keys(transporteIcons).map((tipo, idx) => (
-          <Pressable key={idx} style={styles.transportCard} onPress={() => { setTipoTransporteId(idx); handleChange('tipoTransporteLabel', tipo); }}>
-            <Feather name="truck" size={24} color={form.tipoTransporteLabel === tipo ? '#fff' : '#999'} />
-            <Text style={styles.input}>{tipo}</Text>
-          </Pressable>
-        ))}
-      </View>
-      <Text style={styles.descText}>{form.tipoTransporteLabel ? `Seleccionado: ${form.tipoTransporteLabel}` : 'Elige transporte'}</Text>
-    </View>
-  );
-
-  const PasoConfirmar = () => (
-    <View style={styles.card}>
-      <Text style={styles.cardTitleWhite}>Resumen</Text>
-      <View style={styles.confirmRow}><Feather name="map-pin" size={20} color="#fff" /><Text style={styles.confirmText}>{origenLabel}</Text></View>
-      <View style={styles.confirmRow}><Feather name="map" size={20} color="#fff" /><Text style={styles.confirmText}>{destinoLabel}</Text></View>
-      <View style={styles.confirmRow}><Feather name="calendar" size={20} color="#fff" /><Text style={styles.confirmText}>{form.fecha}</Text></View>
-      <View style={styles.confirmRow}><Feather name="clock" size={20} color="#fff" /><Text style={styles.confirmText}>{form.horaRecogida} → {form.horaEntrega}</Text></View>
-      {form.cargas.map((c, i) => (
-        <View key={i} style={styles.confirmRow}><Feather name="layers" size={20} color="#fff" /><Text style={styles.confirmText}>{`${c.tipo} ${c.variedad} (${c.cantidad} uds, ${c.peso}kg)`}</Text></View>
-      ))}
-      <View style={styles.confirmRow}><Feather name="truck" size={20} color="#fff" /><Text style={styles.confirmText}>{form.tipoTransporteLabel}</Text></View>
-    </View>
-  );
-
-  const pasosComponents = [
-    <PasoUbicacion key="0" />, 
-    <PasoParticion key="1" />,
-    <PasoCargas key="2" />, 
-    <PasoTransporte key="3" />,
-    <PasoConfirmar key="4" />
-  ];
-
-  return (
-    <LinearGradient colors={['#0140CD', '#0140CD']} style={[styles.container, { paddingTop: Platform.OS === 'ios' ? 60 : 40 }]}>
-      {/* Stepper */}
-      <View style={styles.stepper}>
-        {pasosLabels.map((_, i) => (
-          <React.Fragment key={i}>
-            <View style={[styles.circle, i <= paso && styles.circleActive]}>
-              <Text style={[styles.circleText, i <= paso && styles.circleTextActive]}>{i + 1}</Text>
-            </View>
-            {i < pasosLabels.length - 1 && <View style={[styles.line, i < paso && styles.lineActive]} />}
-          </React.Fragment>
-        ))}
-      </View>
-      
-      {/* Labels */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 16 }}>
-        {pasosLabels.map((l, i) => (
-          <Text key={i} style={[styles.labelStep, i <= paso && styles.labelActive]}>{l}</Text>
-        ))}
-      </View>
-
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: 16 }]}>
-        {pasosComponents[paso]}
-      </ScrollView>
-
-      {/* Navigation */}
-      <View style={styles.nav}>
-        {paso > 0 && !loading && (
-          <Pressable style={styles.navBtn} onPress={() => setPaso(paso - 1)}>
-            <Ionicons name="arrow-back" size={20} color="#fff" />
-            <Text style={styles.navText}>Atrás</Text>
-          </Pressable>
-        )}
-        
-        {paso < pasosLabels.length - 1 && !loading && (
-          <Pressable style={styles.navBtn} onPress={() => setPaso(paso + 1)}>
-            <Text style={styles.navText}>Siguiente</Text>
-            <Ionicons name="arrow-forward" size={20} color="#fff" />
-          </Pressable>
-        )}
-        
-        {paso === pasosLabels.length - 1 && (
-          <Pressable style={[styles.navBtn, styles.finishBtn]} onPress={crearEnvio} disabled={loading}>
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.navText}>Crear Envío</Text>}
-          </Pressable>
-        )}
-      </View>
-    </LinearGradient>
   );
 }
