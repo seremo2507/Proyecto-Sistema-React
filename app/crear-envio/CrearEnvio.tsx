@@ -298,6 +298,7 @@ export default function CrearEnvio() {
     return esValido;
   };
 
+  // FUNCIÓN CORREGIDA - Ahora obtiene la ruta antes de crear el envío
   const crearEnvio = async () => {
     if (!validarFormulario()) {
       Alert.alert('Error', 'Por favor corrige los errores marcados');
@@ -307,15 +308,46 @@ export default function CrearEnvio() {
     setLoading(true);
 
     try {
-      // Preparar payload para cada partición
-      for (const particion of form.particiones) {
+      // 1. Obtener la ruta entre origen y destino
+      const origenCoords = `${form.origen.longitude},${form.origen.latitude}`;
+      const destinoCoords = `${form.destino.longitude},${form.destino.latitude}`;
+      
+      console.log('Obteniendo ruta de:', origenCoords, 'a:', destinoCoords);
+      
+      const ruta = await api.getRuta(origenCoords, destinoCoords);
+      
+      // 2. Validar que se obtuvo una ruta válida
+      if (!ruta.coordinates || ruta.coordinates.length === 0) {
+        Alert.alert(
+          'Error de Ruta', 
+          'No se pudo calcular la ruta entre el origen y destino seleccionados. Verifica que las ubicaciones sean válidas.'
+        );
+        return;
+      }
+
+      console.log(`Ruta obtenida con ${ruta.coordinates.length} puntos`);
+      console.log(`Distancia: ${ruta.distance ? (ruta.distance / 1000).toFixed(1) + ' km' : 'No disponible'}`);
+      console.log(`Duración estimada: ${ruta.duration ? Math.round(ruta.duration / 60) + ' minutos' : 'No disponible'}`);
+
+      // 3. Crear envíos para cada partición
+      for (let i = 0; i < form.particiones.length; i++) {
+        const particion = form.particiones[i];
+        
+        // Mostrar progreso
+        if (form.particiones.length > 1) {
+          console.log(`Creando partición ${i + 1} de ${form.particiones.length}`);
+        }
+
         const payload = {
           loc: {
             nombreOrigen: origenLabel,
             coordenadasOrigen: [form.origen.latitude, form.origen.longitude],
             nombreDestino: destinoLabel,
             coordenadasDestino: [form.destino.latitude, form.destino.longitude],
-            segmentos: []
+            segmentos: ruta.coordinates, // ← AQUÍ SE INCLUYE LA RUTA
+            // Metadatos adicionales de la ruta
+            ...(ruta.distance && { distancia: ruta.distance }),
+            ...(ruta.duration && { duracion: ruta.duration })
           },
           part: {
             id_tipo_transporte: particion.tipoTransporteId,
@@ -336,20 +368,37 @@ export default function CrearEnvio() {
           }
         };
 
+        console.log(`Creando envío para partición ${i + 1}:`, payload);
         await api.crearEnvio(payload);
       }
 
+      // 4. Éxito
+      console.log('Todos los envíos creados exitosamente');
       setShowConfirmacion(true);
+
     } catch (e: unknown) {
       console.error("Error al crear el envío:", e);
-      const msg = e instanceof Error ? e.message : String(e);
-      Alert.alert('Error', msg);
+      
+      // Manejo de errores específicos
+      let mensaje = 'Error desconocido al crear el envío';
+      
+      if (e instanceof Error) {
+        if (e.message.includes('Google Maps API')) {
+          mensaje = 'Error al calcular la ruta. Verifica tu conexión a internet e intenta nuevamente.';
+        } else if (e.message.includes('Error ubicacion')) {
+          mensaje = 'Error al registrar la ubicación en el servidor.';
+        } else if (e.message.includes('Error envío')) {
+          mensaje = 'Error al registrar el envío en el servidor.';
+        } else {
+          mensaje = e.message;
+        }
+      }
+      
+      Alert.alert('Error', mensaje);
     } finally {
       setLoading(false);
     }
   };
-
-
 
   // Vista de confirmación
   const VistaConfirmacion = () => (
