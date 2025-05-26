@@ -48,26 +48,26 @@ export default function CustomDrawer(props: any) {
   return (
     <View style={tw`flex-1 bg-white`}>
       <DrawerContentScrollView {...props} contentContainerStyle={tw`flex-grow justify-between`}>
-        <View style={tw`items-center mt-14 mb-8`}>
+        <View style={tw`items-center mt-14 mb-0`}>
           <View style={tw`w-20 h-20 rounded-full bg-[#0140CD] justify-center items-center mb-3`}>
             <Image source={require('../assets/logo.png')} style={tw`w-16 h-16`} />
           </View>
           <Text style={tw`text-base text-gray-500 mb-1`}>Bienvenido</Text>
-          <Text style={tw`text-xl font-bold text-gray-800`}>{usuario.nombre}</Text>
+          <Text style={tw`text-xl font-bold text-gray-800 mb-0`}>{usuario.nombre}</Text>
         </View>
 
-        <View style={tw`h-px bg-gray-200 mx-5 mb-5`} />
-
-        {/* Ubicaciones Guardadas solo para clientes */}
+        {/* Ubicaciones Guardadas solo para clientes - SÚPER SUPERPUESTO */}
         {usuario.rol === 'cliente' && (
           <Pressable
-            style={tw`flex-row items-center py-3 px-5 mb-2.5`}
+            style={tw`flex-row items-center py-3 px-5 mb-4 -mt-35`}
             onPress={() => router.push('/ubicaciones-guardadas')}
           >
             <Ionicons name="location-outline" size={22} color="#0140CD" />
             <Text style={tw`text-gray-700 text-base ml-3`}>Ubicaciones Guardadas</Text>
           </Pressable>
         )}
+
+        <View style={tw`h-px bg-gray-200 mx-5 mb-5`} />
 
         {/* Cerrar sesión */}
         <Pressable 
