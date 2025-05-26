@@ -27,8 +27,20 @@ type Envio = {
   [key: string]: any;
 };
 
+type EnvioCliente = {
+  id: number;
+  estado: string;
+  fecha_recogida?: string;
+  hora_recogida?: string;
+  hora_entrega?: string;
+  nombre_origen?: string;
+  nombre_destino?: string;
+  [key: string]: any;
+};
+
 export default function HomeScreen() {
   const [envios, setEnvios] = useState<Envio[]>([]);
+  const [enviosCliente, setEnviosCliente] = useState<EnvioCliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [usuario, setUsuario] = useState<{ nombre: string; rol: string }>({ nombre: 'Juan', rol: 'transportista' });
@@ -55,6 +67,34 @@ export default function HomeScreen() {
     }
   };
 
+  // Fetch shipments for cliente (igual que en el JS original)
+  const fetchEnviosCliente = async () => {
+    setLoading(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) { setEnviosCliente([]); return; }
+      
+      const res = await fetch('https://api-4g7v.onrender.com/api/envios/mis-envios', {
+        method: 'GET',
+        headers: { 
+          Authorization: `Bearer ${token}` 
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error('No se pudo obtener los envíos');
+      }
+
+      const data = await res.json();
+      setEnviosCliente(data || []);
+    } catch (err) {
+      console.error('❌ Error al obtener los envíos:', err);
+      setEnviosCliente([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Load user and shipments on focus
   useFocusEffect(
     useCallback(() => {
@@ -63,8 +103,15 @@ export default function HomeScreen() {
         const parsed = raw ? JSON.parse(raw) : {};
         const rol = parsed.rol || 'transportista';
         setUsuario({ nombre: parsed.nombre || 'Juan', rol });
+        
         if (rol === 'transportista') {
+          // Transportista inicia en "asignado"
+          setFiltroActual('asignado');
           await fetchEnvios();
+        } else if (rol === 'cliente') {
+          // Cliente inicia en "curso"
+          setFiltroActual('curso');
+          await fetchEnviosCliente();
         }
       };
       cargar();
@@ -75,11 +122,13 @@ export default function HomeScreen() {
     setRefreshing(true);
     if (usuario.rol === 'transportista') {
       await fetchEnvios();
+    } else if (usuario.rol === 'cliente') {
+      await fetchEnviosCliente();
     }
     setRefreshing(false);
   };
 
-  // Filtrar envíos según el estado seleccionado
+  // Filtrar envíos según el estado seleccionado para transportista
   const enviosFiltrados = envios.filter(envio => {
     const estado = envio.estado_envio.toLowerCase();
     switch (filtroActual) {
@@ -94,7 +143,49 @@ export default function HomeScreen() {
     }
   });
 
-  // Render shipment
+  // Filtrar envíos para cliente (igual lógica que el JS original)
+  const enviosClienteFiltrados = enviosCliente.filter(envio => {
+    switch (filtroActual) {
+      case 'anteriores':
+        return envio.estado === 'Entregado';
+      case 'curso':
+        return envio.estado === 'En curso';
+      case 'pendientes':
+        return envio.estado === 'Pendiente' || envio.estado === 'Asignado';
+      default:
+        return true;
+    }
+  });
+
+  // Formatear fecha (igual que en el JS original)
+  const formatearFecha = (fecha: string | undefined) => {
+    if (!fecha) return '—';
+    return new Date(fecha).toLocaleDateString();
+  };
+
+  // Formatear hora (igual que en el JS original)
+  const formatearHora = (hora: string | undefined) => {
+    if (!hora || hora === '00:00:00.000Z') return '—';
+    return hora.substring(0, 5);
+  };
+
+  // Obtener color de estado para cliente
+  const getEstadoColor = (estado: string) => {
+    switch (estado) {
+      case 'Pendiente':
+        return '#EAB308'; // yellow
+      case 'Asignado':
+        return '#8B5CF6'; // purple
+      case 'En curso':
+        return '#3B82F6'; // blue
+      case 'Entregado':
+        return '#10B981'; // green
+      default:
+        return '#6B7280'; // gray
+    }
+  };
+
+  // Render shipment para transportista
   const renderEnvio = ({ item }: { item: Envio }) => (
     <View style={tw`mb-4`}>
       <TouchableOpacity
@@ -135,6 +226,47 @@ export default function HomeScreen() {
     </View>
   );
 
+  // Render shipment para cliente (exactamente igual diseño que transportista)
+  const renderEnvioCliente = ({ item }: { item: EnvioCliente }) => (
+    <View style={tw`mb-4`}>
+      <TouchableOpacity
+        style={[
+          tw`bg-white mx-4 rounded-xl p-4 shadow`,
+          { 
+            borderLeftWidth: 4, 
+            borderLeftColor: '#0140CD',
+            shadowColor: '#000',
+            shadowOpacity: 0.1,
+            shadowOffset: { width: 0, height: 2 },
+            shadowRadius: 4,
+            elevation: 3
+          }
+        ]}
+        onPress={() => {
+          // Igual que en el JS original
+          AsyncStorage.setItem('envioEnSeguimiento', item.id.toString());
+          // Aquí implementarías la navegación a seguimiento
+          console.log(`Navegando a seguimiento del envío: ${item.id}`);
+        }}
+      >
+        <View style={tw`flex-row items-center mb-2`}>
+          <Ionicons name="cube-outline" size={24} color="#0140CD" />
+          <Text style={tw`text-gray-800 text-lg font-semibold ml-2`}>
+            Envío N.º {item.id}
+          </Text>
+        </View>
+        <Text style={tw`text-gray-500 text-sm mb-3`}>
+          {item.nombre_origen || 'Origen'} → {item.nombre_destino || 'Destino'} ▪︎ {formatearFecha(item.fecha_recogida)}
+        </Text>
+        <View style={tw`self-start rounded-xl overflow-hidden`}>
+          <Text style={tw`text-white py-1 px-3 text-xs bg-[#0140CD]`}>
+            {item.estado}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <View style={tw`flex-1 bg-gray-100`}>
       <StatusBar barStyle="dark-content" />
@@ -153,7 +285,7 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* Filtros - Solo visibles para transportistas */}
+      {/* Filtros para transportistas */}
       {usuario.rol === 'transportista' && (
         <View style={tw`flex-row justify-center py-3 bg-white mb-px`}>
           <TouchableOpacity
@@ -179,8 +311,41 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {/* Mostrar panel de admin/cliente o lista de envíos para transportista */}
-      {(usuario.rol === 'admin' || usuario.rol === 'cliente') ? (
+      {/* Filtros para clientes (sin números) */}
+      {usuario.rol === 'cliente' && (
+        <View style={tw`flex-row justify-center py-3 bg-white mb-px`}>
+          <TouchableOpacity
+            style={tw`px-3 py-1.5 mx-1 ${filtroActual === 'curso' ? 'border border-[#0140CD] rounded-full' : ''}`}
+            onPress={() => setFiltroActual('curso')}
+          >
+            <Text style={tw`${filtroActual === 'curso' ? 'text-[#0140CD]' : 'text-gray-600'}`}>
+              En Curso
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={tw`px-3 py-1.5 mx-1 ${filtroActual === 'anteriores' ? 'border border-[#0140CD] rounded-full' : ''}`}
+            onPress={() => setFiltroActual('anteriores')}
+          >
+            <Text style={tw`${filtroActual === 'anteriores' ? 'text-[#0140CD]' : 'text-gray-600'}`}>
+              Anteriores
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={tw`px-3 py-1.5 mx-1 ${filtroActual === 'pendientes' ? 'border border-[#0140CD] rounded-full' : ''}`}
+            onPress={() => setFiltroActual('pendientes')}
+          >
+            <Text style={tw`${filtroActual === 'pendientes' ? 'text-[#0140CD]' : 'text-gray-600'}`}>
+              Pendientes
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Contenido principal */}
+      {usuario.rol === 'admin' ? (
+        // Panel de admin (sin cambios)
         <View style={tw`flex-1 justify-center items-center p-4`}>
           <Text style={tw`text-gray-800 text-xl font-bold mb-5`}>Panel de Administrador</Text>
           <TouchableOpacity 
@@ -200,7 +365,8 @@ export default function HomeScreen() {
             <Text style={tw`text-[#0140CD] text-base font-semibold`}>Crear Envío</Text>
           </TouchableOpacity>
         </View>
-      ) : usuario.rol === 'transportista' && (
+      ) : usuario.rol === 'transportista' ? (
+        // Lista de envíos para transportista (sin cambios)
         loading ? (
           <View style={tw`flex-1 justify-center items-center`}>
             <ActivityIndicator size="large" color="#0140CD" />
@@ -224,7 +390,32 @@ export default function HomeScreen() {
             }
           />
         )
-      )}
+      ) : usuario.rol === 'cliente' ? (
+        // Lista de envíos para cliente (nueva implementación)
+        loading ? (
+          <View style={tw`flex-1 justify-center items-center`}>
+            <ActivityIndicator size="large" color="#0140CD" />
+          </View>
+        ) : enviosClienteFiltrados.length === 0 ? (
+          <View style={tw`flex-1 justify-center items-center`}>
+            <Text style={tw`text-gray-600 text-lg`}>No hay envíos para mostrar</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={enviosClienteFiltrados}
+            keyExtractor={item => item.id.toString()}
+            renderItem={renderEnvioCliente}
+            contentContainerStyle={tw`pt-2 pb-6`}
+            refreshControl={
+              <RefreshControl 
+                refreshing={refreshing} 
+                onRefresh={onRefresh} 
+                colors={['#0140CD']} 
+              />
+            }
+          />
+        )
+      ) : null}
     </View>
   );
 }
