@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import {
   View,
   Text,
@@ -27,6 +27,18 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+
+  // Resetear contraseña cuando la pantalla pierde el foco
+  useFocusEffect(
+    React.useCallback(() => {
+      // Esta función se ejecuta cuando la pantalla gana el foco
+      return () => {
+        // Esta función se ejecuta cuando la pantalla pierde el foco
+        setPassword('');
+        setTouched(prev => ({ ...prev, password: false }));
+      };
+    }, [])
+  );
 
   // Auto-dismiss success toast after 2s
   useEffect(() => {
